@@ -110,7 +110,7 @@ export function AnalysisReportPage({
     const positionData =
       position?.heatmapData?.map((p) => ({ x: p.x, y: p.y })) ?? [];
 
-    // 3) 스트로크 바차트: API는 {smash, clear, drop, drive, lob}
+    // 3) 스트로크 바 차트: API는 {smash, clear, drop, drive}
     const strokeData =
       strokeTypes
         ? [
@@ -118,7 +118,6 @@ export function AnalysisReportPage({
             { name: "클리어", key: "clear" as const, count: strokeTypes.clear, color: "#3b82f6" },
             { name: "드롭", key: "drop" as const, count: strokeTypes.drop, color: "#10b981" },
             { name: "드라이브", key: "drive" as const, count: strokeTypes.drive, color: "#f59e0b" },
-            { name: "롭", key: "lob" as const, count: strokeTypes.lob, color: "#a855f7" },
           ].filter((s) => typeof s.count === "number")
         : [];
 
