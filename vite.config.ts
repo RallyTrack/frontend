@@ -1,30 +1,45 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import { fileURLToPath } from 'url'
-import { dirname, resolve } from 'path'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
 
-// ESM 환경에서 __dirname 대체
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
   ],
+
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
+      "@": resolve(__dirname, "./src"),
     },
   },
+<<<<<<< HEAD
   server: {
     proxy: {
       '/api': {
         target: 'http://localhost:8080', // 백엔드 서버 IP
+=======
+
+  // 🔥 resolve 밖에 있어야 함
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:8080",
+>>>>>>> b10ebf17 (analysis-report api is connected)
         changeOrigin: true,
         secure: false,
       },
     },
   },
+<<<<<<< HEAD
 })
+=======
+});
+
+
+>>>>>>> b10ebf17 (analysis-report api is connected)

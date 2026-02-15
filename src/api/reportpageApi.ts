@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import type { ReportResponse } from "../types/reportpageApi";
 
 const USE_MOCK = true; // ✅ 지금은 true로 두고, 백엔드 붙이면 false
@@ -58,6 +59,29 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
   const res = await fetch(`/api/v1/analysis/${videoId}`, {
     method : "GET",
     headers: { Accept: "application/json" },
+=======
+import {ReportResponse} from "../types/reportpageType"
+
+// 🔹 2. API 호출 함수
+export async function fetchReport(
+  videoId: string | number
+): Promise<ReportResponse> {
+
+  const token =
+    localStorage.getItem("accessToken") ??
+    sessionStorage.getItem("accessToken");
+
+  if (!token) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  const res = await fetch(`/api/v1/analysis/${videoId}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+>>>>>>> b10ebf17 (analysis-report api is connected)
   });
 
   if (!res.ok) {
