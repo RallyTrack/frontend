@@ -30,9 +30,13 @@ import { Header, type Page } from "./Header";
 
 // ✅ 
 import { fetchReport } from "../api/reportpageApi";
+<<<<<<< HEAD
 import type { ReportResponse } from "../types/reportpageApi";
 =======
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+import type { ReportResponse } from "../types/reportpageType";
+>>>>>>> 3578ac69 (api update in feat#/6-result-report)
 
 import { Header, type Page } from "./Header";
 
