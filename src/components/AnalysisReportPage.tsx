@@ -37,7 +37,7 @@ import type { ReportResponse } from "../types/reportpageApi";
 import { Header, type Page } from "./Header";
 
 
-// ✅ 네가 만들어둔 분리 파일로 교체
+// ✅ 
 import { fetchReport } from "../api/reportpageApi";
 import type { ReportResponse } from "../types/reportpageType";
 interface AnalysisReportPageProps {
@@ -125,11 +125,15 @@ export function AnalysisReportPage({
       strokeTypes
         ? [
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 18c5063d (api is updated)
           { name: "스매시", key: "smash" as const, count: strokeTypes.smash, color: "#ef4444" },
           { name: "클리어", key: "clear" as const, count: strokeTypes.clear, color: "#3b82f6" },
           { name: "드롭", key: "drop" as const, count: strokeTypes.drop, color: "#10b981" },
           { name: "드라이브", key: "drive" as const, count: strokeTypes.drive, color: "#f59e0b" },
         ].filter((s) => typeof s.count === "number")
+<<<<<<< HEAD
 =======
             { name: "스매시", key: "smash" as const, count: strokeTypes.smash, color: "#ef4444" },
             { name: "클리어", key: "clear" as const, count: strokeTypes.clear, color: "#3b82f6" },
@@ -137,6 +141,8 @@ export function AnalysisReportPage({
             { name: "드라이브", key: "drive" as const, count: strokeTypes.drive, color: "#f59e0b" },
           ].filter((s) => typeof s.count === "number")
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+>>>>>>> 18c5063d (api is updated)
         : [];
 
     // 4) 능력치 레이더: API는 {smash, defense, speed, stamina, accuracy}
@@ -144,12 +150,16 @@ export function AnalysisReportPage({
       ability
         ? [
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 18c5063d (api is updated)
           { name: "스매시", value: ability.smash },
           { name: "수비", value: ability.defense },
           { name: "스피드", value: ability.speed },
           { name: "지구력", value: ability.stamina },
           { name: "정확도", value: ability.accuracy },
         ]
+<<<<<<< HEAD
 =======
             { name: "스매시", value: ability.smash },
             { name: "수비", value: ability.defense },
@@ -158,6 +168,8 @@ export function AnalysisReportPage({
             { name: "정확도", value: ability.accuracy },
           ]
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+>>>>>>> 18c5063d (api is updated)
         : [];
 
     // 5) AI 코칭: 현재 API는 feedbackText 하나
@@ -380,6 +392,7 @@ export function AnalysisReportPage({
                     }
                   }}
 <<<<<<< HEAD
+<<<<<<< HEAD
                   className={`absolute rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 ${selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
                     }`}
 =======
@@ -387,6 +400,10 @@ export function AnalysisReportPage({
                     selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
                   }`}
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+                  className={`absolute rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 ${selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
+                    }`}
+>>>>>>> 18c5063d (api is updated)
                   style={{
                     left: `${zone.x}%`,
                     top: `${zone.y}%`,
@@ -531,6 +548,7 @@ export function AnalysisReportPage({
               </div>
               <div
 <<<<<<< HEAD
+<<<<<<< HEAD
                 className={`text-sm font-bold ${summary.matchOutcome === "WIN"
                     ? "text-green-600"
                     : summary.matchOutcome === "LOSE"
@@ -546,10 +564,19 @@ export function AnalysisReportPage({
                     : "text-gray-600"
                 }`}
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+                className={`text-sm font-bold ${summary.matchOutcome === "WIN"
+                    ? "text-green-600"
+                    : summary.matchOutcome === "LOSE"
+                      ? "text-red-600"
+                      : "text-gray-600"
+                  }`}
+>>>>>>> 18c5063d (api is updated)
               >
                 {summary.matchOutcome === "WIN"
                   ? "승리"
                   : summary.matchOutcome === "LOSE"
+<<<<<<< HEAD
 <<<<<<< HEAD
                     ? "패배"
                     : "무승부"}
@@ -557,6 +584,10 @@ export function AnalysisReportPage({
                   ? "패배"
                   : "무승부"}
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+                    ? "패배"
+                    : "무승부"}
+>>>>>>> 18c5063d (api is updated)
               </div>
             </div>
 
