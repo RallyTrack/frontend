@@ -26,7 +26,7 @@ import {
 
 import { Header, type Page } from "./Header";
 
-// ✅ 네가 만들어둔 분리 파일로 교체
+// ✅ 
 import { fetchReport } from "../api/reportpageApi";
 import type { ReportResponse } from "../types/reportpageApi";
 
@@ -114,23 +114,23 @@ export function AnalysisReportPage({
     const strokeData =
       strokeTypes
         ? [
-            { name: "스매시", key: "smash" as const, count: strokeTypes.smash, color: "#ef4444" },
-            { name: "클리어", key: "clear" as const, count: strokeTypes.clear, color: "#3b82f6" },
-            { name: "드롭", key: "drop" as const, count: strokeTypes.drop, color: "#10b981" },
-            { name: "드라이브", key: "drive" as const, count: strokeTypes.drive, color: "#f59e0b" },
-          ].filter((s) => typeof s.count === "number")
+          { name: "스매시", key: "smash" as const, count: strokeTypes.smash, color: "#ef4444" },
+          { name: "클리어", key: "clear" as const, count: strokeTypes.clear, color: "#3b82f6" },
+          { name: "드롭", key: "drop" as const, count: strokeTypes.drop, color: "#10b981" },
+          { name: "드라이브", key: "drive" as const, count: strokeTypes.drive, color: "#f59e0b" },
+        ].filter((s) => typeof s.count === "number")
         : [];
 
     // 4) 능력치 레이더: API는 {smash, defense, speed, stamina, accuracy}
     const abilityData =
       ability
         ? [
-            { name: "스매시", value: ability.smash },
-            { name: "수비", value: ability.defense },
-            { name: "스피드", value: ability.speed },
-            { name: "지구력", value: ability.stamina },
-            { name: "정확도", value: ability.accuracy },
-          ]
+          { name: "스매시", value: ability.smash },
+          { name: "수비", value: ability.defense },
+          { name: "스피드", value: ability.speed },
+          { name: "지구력", value: ability.stamina },
+          { name: "정확도", value: ability.accuracy },
+        ]
         : [];
 
     // 5) AI 코칭: 현재 API는 feedbackText 하나
@@ -342,9 +342,8 @@ export function AnalysisReportPage({
                       onJumpToVideo(zone.time);
                     }
                   }}
-                  className={`absolute rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 ${
-                    selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
-                  }`}
+                  className={`absolute rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 ${selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
+                    }`}
                   style={{
                     left: `${zone.x}%`,
                     top: `${zone.y}%`,
@@ -488,19 +487,18 @@ export function AnalysisReportPage({
                 {summary.myScore} - {summary.opponentScore}
               </div>
               <div
-                className={`text-sm font-bold ${
-                  summary.matchOutcome === "WIN"
+                className={`text-sm font-bold ${summary.matchOutcome === "WIN"
                     ? "text-green-600"
                     : summary.matchOutcome === "LOSE"
-                    ? "text-red-600"
-                    : "text-gray-600"
-                }`}
+                      ? "text-red-600"
+                      : "text-gray-600"
+                  }`}
               >
                 {summary.matchOutcome === "WIN"
                   ? "승리"
                   : summary.matchOutcome === "LOSE"
-                  ? "패배"
-                  : "무승부"}
+                    ? "패배"
+                    : "무승부"}
               </div>
             </div>
 
