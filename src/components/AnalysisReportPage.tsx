@@ -27,7 +27,7 @@ import {
 import { Header, type Page } from "./Header";
 
 
-// ✅ 네가 만들어둔 분리 파일로 교체
+// ✅ 
 import { fetchReport } from "../api/reportpageApi";
 import type { ReportResponse } from "../types/reportpageApi";
 
