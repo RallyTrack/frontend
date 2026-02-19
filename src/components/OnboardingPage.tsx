@@ -33,7 +33,7 @@ export function OnboardingPage({ onGetStarted, onOpenLogin, onOpenSignup }: Onbo
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#1a2b4c] overflow-x-hidden">
-      {/* ✅ Navigation: 1번 파일처럼 로고 SVG로 교체 */}
+      {/*  Navigation: 1번 파일처럼 로고 SVG로 교체 */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="logo_img flex items-center translate-y-6">

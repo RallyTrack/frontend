@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import apiClient from '../apiClient';
 import {
   Upload,
   Play,
@@ -82,6 +83,7 @@ export function DashboardPage({
 useEffect(() => {
   const fetchDashboardData = async () => {
     try {
+<<<<<<< HEAD
       // 백엔드 포트(8080) 명시 및 Authorization 헤더에 토큰 추가
       const token = localStorage.getItem('access_token');
       const response = await fetch('http://localhost:8080/api/v1/dashboard', {
@@ -101,6 +103,11 @@ useEffect(() => {
       setStats(json.data.dashboardSummary);
       // 영상 목록 매핑
       setVideos(json.data.recentVideos.map(v => ({
+=======
+      const { data }: { data: DashboardResponse } = await apiClient.get('/api/v1/dashboard');
+      setStats(data.data.dashboardSummary);
+      setVideos(data.data.recentVideos.map(v => ({
+>>>>>>> 01fae018 (feat: Axios 인터셉터 도입 및 DashboardPage API 로직 리팩토링)
         id: String(v.videoId),
         name: v.title,
         date: v.date,
@@ -109,14 +116,11 @@ useEffect(() => {
         thumbnail: v.thumbnailUrl,
         status: 'completed',
       })));
-
     } catch (e) {
-      // 에러 처리
       console.error(e);
       setVideos([]);
     }
   };
-
   fetchDashboardData();
 }, []);
 
@@ -129,12 +133,10 @@ useEffect(() => {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!uploadFile) {
       alert('업로드할 영상 파일을 선택해주세요.');
       return;
     }
-    
     // 1. 임시 ID 생성 및 목록에 '업로드 중' 상태로 즉시 추가 (Optimistic UI)
     const tempId = `temp-${Date.now()}`;
     const tempVideo: VideoRecord = {
@@ -144,16 +146,13 @@ useEffect(() => {
       duration: '업로드 중...',
       status: 'uploading',
     };
-
-    setVideos([tempVideo, ...videos]); // 목록 맨 앞에 추가
-    
-    // 2. 모달 즉시 닫기 및 초기화
+    setVideos([tempVideo, ...videos]);
     setShowUploadModal(false);
     setUploadFile(null);
     setVideoName('');
-
     // 3. 백그라운드에서 API 요청 진행
     try {
+<<<<<<< HEAD
       const token = localStorage.getItem('access_token');
       const response = await fetch('http://localhost:8080/api/v1/videos', {
         method: 'POST',
@@ -167,16 +166,13 @@ useEffect(() => {
           title: videoName || uploadFile.name,
           matchDate: new Date().toISOString().split('T')[0], // YYYY-MM-DD
         }),
+=======
+      const { data: newVideoData } = await apiClient.post('/api/v1/videos', {
+        title: videoName || uploadFile.name,
+        matchDate: new Date().toISOString().split('T')[0],
+>>>>>>> 01fae018 (feat: Axios 인터셉터 도입 및 DashboardPage API 로직 리팩토링)
       });
-
-      if (!response.ok) {
-        throw new Error('Upload failed'); // 에러 발생 시 catch 블록으로 이동
-      }
-
-      const newVideoData = await response.json();
-
-      // 4. 업로드 성공 시: 임시 데이터를 실제 서버 데이터로 교체
-      setVideos((prevVideos) => 
+      setVideos((prevVideos) =>
         prevVideos.map((video) => {
           if (video.id === tempId) {
             return {
@@ -184,18 +180,16 @@ useEffect(() => {
               id: newVideoData.id || tempId,
               name: newVideoData.title || video.name,
               date: newVideoData.date || video.date,
-              duration: '분석 완료', // 분석이 완료되었다고 가정
+              duration: '분석 완료',
               status: 'completed',
             };
           }
           return video;
         })
       );
-
     } catch (error) {
       console.error('Upload Error:', error);
-      // 5. 실패 시: 상태를 error로 변경하여 UI에 표시
-      setVideos((prevVideos) => 
+      setVideos((prevVideos) =>
         prevVideos.map((video) => {
           if (video.id === tempId) {
             return {
@@ -208,8 +202,7 @@ useEffect(() => {
         })
       );
       alert('영상 업로드 중 오류가 발생했습니다.');
-    } 
-    // finally 블록 삭제 (백그라운드 처리이므로 불필요)
+    }
   };
 
   return (

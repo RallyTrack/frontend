@@ -9,7 +9,7 @@ type View = "login" | "signup" | "forgot";
 type Props = {
   open: boolean;
   onClose: () => void;
-  onLoginSuccess: () => void;
+  onLoginSuccess: (data: { accessToken: string; refreshToken: string; user: any }) => void;
   initialView?: View;
 };
 
@@ -59,11 +59,8 @@ const handleLogin = async (email: string, password: string) => {
     // 🔥 백엔드 구조 주의 (data 안에 있음)
     const { accessToken, refreshToken, user } = result.data;
 
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("refreshToken", refreshToken);
-    localStorage.setItem("user", JSON.stringify(user));
-
-    onLoginSuccess(); // App.tsx에서 dashboard 이동
+    // 부모 컴포넌트에 데이터를 전달 (부모에서 Context 업데이트)
+    onLoginSuccess({ accessToken, refreshToken, user });
 
   } catch (error: any) {
     alert(error.message);
