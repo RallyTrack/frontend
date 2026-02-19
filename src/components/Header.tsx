@@ -1,4 +1,4 @@
-import { Activity, LayoutDashboard, Play, FileText, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, Play, FileText, LogOut, User } from 'lucide-react';
 
 export type Page = 'dashboard' | 'video' | 'report' | 'account';
 

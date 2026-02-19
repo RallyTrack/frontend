@@ -160,6 +160,12 @@ export function VideoPlayerPage({ videoId, onBack, onNavigate, onLogout }: Video
       />
 
       <div className="container mx-auto px-6 py-8">
+         <button
+    onClick={onBack}
+    className="mb-4 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm"
+  >
+    ← 돌아가기
+  </button>
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Video Player */}
           <div className="lg:col-span-2 space-y-6">
