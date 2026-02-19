@@ -117,7 +117,7 @@ export function AnalysisReportPage({
         y: p.y,
         // intensity는 없으니 임시: 데이터 분포에 따라 랜덤/고정치 (여기선 idx 기반)
         intensity: 0.4 + (idx % 5) * 0.12,
-        // time도 없으니 undefined로 둠 (있으면 연결 가능)
+    
       })) ?? [];
 
     // 2) 산점도: 히트맵 데이터를 그대로 써도 되고, 별도라면 백엔드에 추가하면 됨
@@ -366,20 +366,20 @@ export function AnalysisReportPage({
             <div className="aspect-[4/3] bg-[#f0f9ff] rounded-xl relative overflow-hidden border border-gray-100">
               {/* Court lines */}
               <div className="absolute inset-0">
-                <svg className="w-full h-full" viewBox="0 0 400 300">
+                <svg className="w-full h-full" viewBox="0 0 300 400">
                   <rect
                     x="20"
                     y="20"
-                    width="360"
-                    height="260"
+                    width="260"
+                    height="360"
                     fill="none"
                     stroke="#cbd5e1"
                     strokeWidth="1"
                   />
-                  <line x1="200" y1="20" x2="200" y2="280" stroke="#cbd5e1" strokeWidth="1" />
-                  <line x1="20" y1="150" x2="380" y2="150" stroke="#cbd5e1" strokeWidth="1" />
-                  <line x1="120" y1="20" x2="120" y2="280" stroke="#cbd5e1" strokeWidth="1" />
-                  <line x1="280" y1="20" x2="280" y2="280" stroke="#cbd5e1" strokeWidth="1" />
+                  <line x1="150" y1="20" x2="150" y2="380" stroke="#cbd5e1" strokeWidth="1" />
+                  <line x1="20" y1="200" x2="280" y2="200" stroke="#cbd5e1" strokeWidth="1" />
+                  <line x1="20" y1="120" x2="280" y2="120" stroke="#cbd5e1" strokeWidth="1" />
+                  <line x1="20" y1="280" x2="280" y2="280" stroke="#cbd5e1" strokeWidth="1" />
                 </svg>
               </div>
 
@@ -409,8 +409,8 @@ export function AnalysisReportPage({
                     }`}
 >>>>>>> 18c5063d (api is updated)
                   style={{
-                    left: `${zone.x}%`,
-                    top: `${zone.y}%`,
+                    left: `${zone.y}%`,
+                    top: `${zone.x}%`,
                     width: `${24 + zone.intensity * 36}px`,
                     height: `${24 + zone.intensity * 36}px`,
                     transform: "translate(-50%, -50%)",
