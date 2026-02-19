@@ -24,6 +24,16 @@ import {
   Cell,
 } from "recharts";
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+
+import { Header, type Page } from "./Header";
+
+
+// ✅ 
+import { fetchReport } from "../api/reportpageApi";
+import type { ReportResponse } from "../types/reportpageType";
+>>>>>>> origin/develop
 
 import { Header, type Page } from "./Header";
 
@@ -130,13 +140,17 @@ export function AnalysisReportPage({
         ? [
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 18c5063d (api is updated)
+=======
+>>>>>>> origin/develop
           { name: "스매시", key: "smash" as const, count: strokeTypes.smash, color: "#ef4444" },
           { name: "클리어", key: "clear" as const, count: strokeTypes.clear, color: "#3b82f6" },
           { name: "드롭", key: "drop" as const, count: strokeTypes.drop, color: "#10b981" },
           { name: "드라이브", key: "drive" as const, count: strokeTypes.drive, color: "#f59e0b" },
         ].filter((s) => typeof s.count === "number")
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
             { name: "스매시", key: "smash" as const, count: strokeTypes.smash, color: "#ef4444" },
@@ -147,6 +161,8 @@ export function AnalysisReportPage({
 >>>>>>> b10ebf17 (analysis-report api is connected)
 =======
 >>>>>>> 18c5063d (api is updated)
+=======
+>>>>>>> origin/develop
         : [];
 
     // 4) 능력치 레이더: API는 {smash, defense, speed, stamina, accuracy}
@@ -155,14 +171,18 @@ export function AnalysisReportPage({
         ? [
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 18c5063d (api is updated)
+=======
+>>>>>>> origin/develop
           { name: "스매시", value: ability.smash },
           { name: "수비", value: ability.defense },
           { name: "스피드", value: ability.speed },
           { name: "지구력", value: ability.stamina },
           { name: "정확도", value: ability.accuracy },
         ]
+<<<<<<< HEAD
 <<<<<<< HEAD
 =======
             { name: "스매시", value: ability.smash },
@@ -174,6 +194,8 @@ export function AnalysisReportPage({
 >>>>>>> b10ebf17 (analysis-report api is connected)
 =======
 >>>>>>> 18c5063d (api is updated)
+=======
+>>>>>>> origin/develop
         : [];
 
     // 5) AI 코칭: 현재 API는 feedbackText 하나
@@ -210,10 +232,14 @@ export function AnalysisReportPage({
           <div className="rounded-xl border border-gray-100 p-8">
             <div className="text-sm font-semibold text-gray-700">리포트 불러오는 중...</div>
 <<<<<<< HEAD
+<<<<<<< HEAD
             <div className="mt-2 text-xs text-gray-400">잠시만 기다려줘.</div>
 =======
             <div className="mt-2 text-xs text-gray-400">잠시만 기다려주세요.</div>
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+            <div className="mt-2 text-xs text-gray-400">잠시만 기다려줘.</div>
+>>>>>>> origin/develop
           </div>
         </main>
       </div>
@@ -296,6 +322,7 @@ export function AnalysisReportPage({
         <button
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     onClick={onBack}
     className="mb-6 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm"
   >
@@ -305,6 +332,8 @@ export function AnalysisReportPage({
 =======
 =======
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+>>>>>>> origin/develop
           onClick={onBack}
           className="mb-6 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm"
         >
@@ -313,9 +342,12 @@ export function AnalysisReportPage({
 
         {/* ✅ Summary Cards (API 매핑) */}
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 8b0dcc9f (api is added)
 =======
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+>>>>>>> origin/develop
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
           <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
@@ -397,6 +429,7 @@ export function AnalysisReportPage({
                   }}
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                   className={`absolute rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 ${selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
                     }`}
 =======
@@ -408,6 +441,10 @@ export function AnalysisReportPage({
                   className={`absolute rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 ${selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
                     }`}
 >>>>>>> 18c5063d (api is updated)
+=======
+                  className={`absolute rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 ${selectedHeatmapPoint === index ? "ring-2 ring-blue-500 ring-offset-2" : ""
+                    }`}
+>>>>>>> origin/develop
                   style={{
                     left: `${zone.y}%`,
                     top: `${zone.x}%`,
@@ -553,12 +590,16 @@ export function AnalysisReportPage({
               <div
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/develop
                 className={`text-sm font-bold ${summary.matchOutcome === "WIN"
                     ? "text-green-600"
                     : summary.matchOutcome === "LOSE"
                       ? "text-red-600"
                       : "text-gray-600"
                   }`}
+<<<<<<< HEAD
 =======
                 className={`text-sm font-bold ${
                   summary.matchOutcome === "WIN"
@@ -576,10 +617,13 @@ export function AnalysisReportPage({
                       : "text-gray-600"
                   }`}
 >>>>>>> 18c5063d (api is updated)
+=======
+>>>>>>> origin/develop
               >
                 {summary.matchOutcome === "WIN"
                   ? "승리"
                   : summary.matchOutcome === "LOSE"
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
                     ? "패배"
@@ -592,6 +636,10 @@ export function AnalysisReportPage({
                     ? "패배"
                     : "무승부"}
 >>>>>>> 18c5063d (api is updated)
+=======
+                    ? "패배"
+                    : "무승부"}
+>>>>>>> origin/develop
               </div>
             </div>
 

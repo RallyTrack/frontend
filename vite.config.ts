@@ -19,23 +19,30 @@ export default defineConfig({
     },
   },
 <<<<<<< HEAD
+<<<<<<< HEAD
   server: {
     proxy: {
       '/api': {
         target: 'http://localhost:8080', // 백엔드 서버 IP
 =======
+=======
+>>>>>>> origin/develop
 
   // 🔥 resolve 밖에 있어야 함
   server: {
     proxy: {
       "/api": {
         target: "http://localhost:8080",
+<<<<<<< HEAD
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+>>>>>>> origin/develop
         changeOrigin: true,
         secure: false,
       },
     },
   },
+<<<<<<< HEAD
 <<<<<<< HEAD
 })
 =======
@@ -43,3 +50,8 @@ export default defineConfig({
 
 
 >>>>>>> b10ebf17 (analysis-report api is connected)
+=======
+});
+
+
+>>>>>>> origin/develop

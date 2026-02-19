@@ -13,6 +13,8 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authInitialView, setAuthInitialView] = useState<"login" | "signup" | "forgot">("login");
 
   const handleLogout = () => {
     logout();

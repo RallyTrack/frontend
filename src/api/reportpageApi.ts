@@ -1,5 +1,6 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 import type { ReportResponse } from "../types/reportpageApi";
 =======
 import {ReportResponse} from "../types/reportpageType"
@@ -23,6 +24,8 @@ export async function fetchReport(
     method : "GET",
     headers: { Accept: "application/json" },
 =======
+=======
+>>>>>>> origin/develop
 import {ReportResponse} from "../types/reportpageType"
 
 // 🔹 2. API 호출 함수
@@ -39,17 +42,23 @@ export async function fetchReport(
   }
 
   const res = await fetch(`/api/v1/analysis/${videoId}`, {
+<<<<<<< HEAD
 =======
 >>>>>>> 3578ac69 (api update in feat#/6-result-report)
+=======
+>>>>>>> origin/develop
     method: "GET",
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${token}`,
     },
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> b10ebf17 (analysis-report api is connected)
 =======
 >>>>>>> 3578ac69 (api update in feat#/6-result-report)
+=======
+>>>>>>> origin/develop
   });
 
   if (!res.ok) {
