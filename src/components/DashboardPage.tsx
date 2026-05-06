@@ -79,7 +79,12 @@ interface UploadApiResponse {
 const POINT_GUIDES = [
   { label: "Top Left", shortLabel: "TL", color: "#3B82F6", netPoint: false },
   { label: "Top Right", shortLabel: "TR", color: "#10B981", netPoint: false },
-  { label: "Bottom Right", shortLabel: "BR", color: "#EC4899", netPoint: false },
+  {
+    label: "Bottom Right",
+    shortLabel: "BR",
+    color: "#EC4899",
+    netPoint: false,
+  },
   { label: "Bottom Left", shortLabel: "BL", color: "#F59E0B", netPoint: false },
   { label: "Net Left", shortLabel: "NL", color: "#8B5CF6", netPoint: true },
   { label: "Net Right", shortLabel: "NR", color: "#06B6D4", netPoint: true },
@@ -227,11 +232,11 @@ function buildCourtCornersPayload(points: Point[]) {
       x: points[3].x,
       y: points[3].y,
     },
-    netLeft: {
+    netTopLeft: {
       x: points[4].x,
       y: points[4].y,
     },
-    netRight: {
+    netTopRight: {
       x: points[5].x,
       y: points[5].y,
     },
@@ -287,12 +292,17 @@ function ActivityChartCard() {
               }}
               formatter={(value: number, name: string) => {
                 if (name === "usageCount") return [`${value}회`, "사이트 사용"];
-                if (name === "uploadCount") return [`${value}개`, "영상 업로드"];
+                if (name === "uploadCount")
+                  return [`${value}개`, "영상 업로드"];
                 return [value, name];
               }}
             />
             <Legend
-              wrapperStyle={{ fontSize: "12px", color: "#64748b", paddingTop: "12px" }}
+              wrapperStyle={{
+                fontSize: "12px",
+                color: "#64748b",
+                paddingTop: "12px",
+              }}
               formatter={(value) => {
                 if (value === "usageCount") return "사이트 사용 횟수";
                 if (value === "uploadCount") return "업로드 영상 수";
@@ -407,8 +417,9 @@ export function DashboardPage({
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [tipIndex, setTipIndex] = useState(0);
-  const [stats, setStats] =
-    useState<DashboardResponse["data"]["dashboardSummary"] | null>(null);
+  const [stats, setStats] = useState<
+    DashboardResponse["data"]["dashboardSummary"] | null
+  >(null);
   const [videos, setVideos] = useState<VideoRecord[]>([]);
 
   const [modalStep, setModalStep] = useState<ModalStep>("upload");
@@ -425,7 +436,9 @@ export function DashboardPage({
 
   const [points, setPoints] = useState<Point[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState<"success" | "error" | null>(null);
+  const [submitResult, setSubmitResult] = useState<"success" | "error" | null>(
+    null,
+  );
   const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -447,7 +460,7 @@ export function DashboardPage({
             video.id === videoId
               ? {
                   ...video,
-                  thumbnail: serverThumbnail,      // ✅ 실제 표시되는 필드 업데이트
+                  thumbnail: serverThumbnail, // ✅ 실제 표시되는 필드 업데이트
                   serverThumbnail,
                 }
               : video,
@@ -456,7 +469,10 @@ export function DashboardPage({
       };
 
       img.onerror = () => {
-        console.warn("서버 썸네일 아직 사용 불가:", { videoId, serverThumbnail });
+        console.warn("서버 썸네일 아직 사용 불가:", {
+          videoId,
+          serverThumbnail,
+        });
       };
 
       img.src = serverThumbnail;
@@ -602,8 +618,10 @@ export function DashboardPage({
     canvas.height = rect.height;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const scaleX = canvas.width / (videoSize.w || img.naturalWidth || canvas.width);
-    const scaleY = canvas.height / (videoSize.h || img.naturalHeight || canvas.height);
+    const scaleX =
+      canvas.width / (videoSize.w || img.naturalWidth || canvas.width);
+    const scaleY =
+      canvas.height / (videoSize.h || img.naturalHeight || canvas.height);
 
     // 코트 라인 (4개 포인트가 찍혔을 때)
     if (points.length >= 4) {
@@ -708,8 +726,10 @@ export function DashboardPage({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scaleX = (videoSize.w || img?.naturalWidth || rect.width) / rect.width;
-    const scaleY = (videoSize.h || img?.naturalHeight || rect.height) / rect.height;
+    const scaleX =
+      (videoSize.w || img?.naturalWidth || rect.width) / rect.width;
+    const scaleY =
+      (videoSize.h || img?.naturalHeight || rect.height) / rect.height;
 
     setPoints((prev) => [
       ...prev,
@@ -783,7 +803,9 @@ export function DashboardPage({
     if (points.length < 6 || !uploadFile) return;
 
     if (!thumbnailBlob || !capturedDataUrl) {
-      alert("썸네일 생성이 아직 완료되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      alert(
+        "썸네일 생성이 아직 완료되지 않았습니다. 잠시 후 다시 시도해주세요.",
+      );
       return;
     }
 
@@ -1197,7 +1219,9 @@ export function DashboardPage({
               <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                 <div>
                   <StepIndicator step="upload" />
-                  <h2 className="text-base font-bold text-gray-900 mt-1">영상 업로드</h2>
+                  <h2 className="text-base font-bold text-gray-900 mt-1">
+                    영상 업로드
+                  </h2>
                   <p className="text-xs text-gray-400 mt-0.5">
                     경기 영상을 업로드하여 AI 분석을 받으세요
                   </p>
@@ -1284,7 +1308,9 @@ export function DashboardPage({
               <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                 <div>
                   <StepIndicator step="frame" />
-                  <h2 className="text-base font-bold text-gray-900 mt-1">프레임 선택</h2>
+                  <h2 className="text-base font-bold text-gray-900 mt-1">
+                    프레임 선택
+                  </h2>
                   <p className="text-xs text-gray-400 mt-0.5">
                     코트가 가장 잘 보이는 프레임을 선택하세요
                   </p>
@@ -1361,7 +1387,9 @@ export function DashboardPage({
               <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                 <div>
                   <StepIndicator step="corners" />
-                  <h2 className="text-base font-bold text-gray-900 mt-1">코트 좌표 지정</h2>
+                  <h2 className="text-base font-bold text-gray-900 mt-1">
+                    코트 좌표 지정
+                  </h2>
                   <p className="text-xs text-gray-400 mt-0.5">
                     코트 네 꼭짓점과 네트 양 끝을 순서대로 클릭하세요
                   </p>
