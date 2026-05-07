@@ -617,37 +617,20 @@ export function VideoPlayerPage({
           `}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
-            {/* ── 토글 ── */}
-            {sidebarOpen ? (
-              <div className="flex items-center gap-2 pl-[10px] pt-4 pb-2">
+            {/* ── 토글 + 네비게이션 ── */}
+            <div className={`px-3 pt-2 pb-2 ${!sidebarOpen && "px-2"}`}>
+              <div className="flex justify-end mb-1">
                 <button
                   onClick={() => setSidebarOpen((v) => !v)}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0"
-                  title="사이드바 접기"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-100 hover:text-gray-500 transition-colors"
+                  title={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
                 >
-                  <PanelLeftClose className="size-4" />
-                </button>
-                <span className="text-sm font-semibold text-gray-400 tracking-wide">접기</span>
-              </div>
-            ) : (
-              <div className="flex justify-center pt-4 pb-2">
-                <button
-                  onClick={() => setSidebarOpen((v) => !v)}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-                  title="사이드바 펼치기"
-                >
-                  <PanelLeftOpen className="size-4" />
+                  {sidebarOpen
+                    ? <PanelLeftClose className="size-4" />
+                    : <PanelLeftOpen className="size-4" />
+                  }
                 </button>
               </div>
-            )}
-
-            {/* ── 1. 네비게이션 ── */}
-            <div className={`px-3 pt-5 pb-2 ${!sidebarOpen && "px-2"}`}>
-              {sidebarOpen && (
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">
-                  네비게이션
-                </p>
-              )}
               <div className="space-y-0.5">
                 <button
                   onClick={() => onNavigate("dashboard")}
@@ -656,7 +639,9 @@ export function VideoPlayerPage({
                   title={!sidebarOpen ? "대시보드" : undefined}
                 >
                   <LayoutDashboard className="size-4 shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium">대시보드</span>}
+                  {sidebarOpen && (
+                    <span className="text-sm font-medium">대시보드</span>
+                  )}
                 </button>
 
                 <button
@@ -666,7 +651,9 @@ export function VideoPlayerPage({
                   title={!sidebarOpen ? "영상 보기 (현재 페이지)" : undefined}
                 >
                   <Play className="size-4 shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium">영상 보기</span>}
+                  {sidebarOpen && (
+                    <span className="text-sm font-medium">영상 보기</span>
+                  )}
                 </button>
 
                 <button
@@ -676,7 +663,9 @@ export function VideoPlayerPage({
                   title={!sidebarOpen ? "분석 페이지" : undefined}
                 >
                   <FileText className="size-4 shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium">분석 페이지</span>}
+                  {sidebarOpen && (
+                    <span className="text-sm font-medium">분석 페이지</span>
+                  )}
                 </button>
               </div>
             </div>
