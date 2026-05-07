@@ -1290,9 +1290,9 @@ export function VideoPlayerPage({
               </div>
             </div>
           </div>
+          <Footer />
         </main>
       </div>
-      <Footer />
     </div>
   );
 }

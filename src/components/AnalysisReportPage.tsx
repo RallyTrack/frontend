@@ -1295,6 +1295,7 @@ ${coaching?.feedbackText ?? "(없음)"}
               </section>
             </div>
           </div>
+          <Footer />
         </main>
       </div>
 
@@ -1347,7 +1348,6 @@ ${coaching?.feedbackText ?? "(없음)"}
         {briefingError && <p className="text-sm text-red-600">브리핑 생성 실패: {briefingError}</p>}
         {!briefingLoading && !briefingError && <MarkdownBriefing content={aiBriefing} />}
       </Modal>
-      <Footer />
     </div>
   );
 }
