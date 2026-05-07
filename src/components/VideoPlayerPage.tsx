@@ -530,6 +530,19 @@ export function VideoPlayerPage({
 
           <div className="flex flex-col h-full overflow-y-auto overflow-x-hidden">
 
+            {/* ── 뒤로가기 ── */}
+            <div className={`px-3 pt-3 pb-1 border-b border-gray-100 ${!sidebarOpen && "px-2"}`}>
+              <button
+                onClick={onBack}
+                className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-500 hover:bg-gray-100 hover:text-gray-700
+                  ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                title={!sidebarOpen ? "뒤로가기" : undefined}
+              >
+                <ChevronLeft className="size-4 shrink-0" />
+                {sidebarOpen && <span className="text-sm font-medium">뒤로가기</span>}
+              </button>
+            </div>
+
             {/* ── 1. 대시보드 ── */}
             <div className={`px-3 pt-5 pb-2 ${!sidebarOpen && "px-2"}`}>
               {sidebarOpen && (
@@ -695,21 +708,13 @@ export function VideoPlayerPage({
           <div className="px-6 py-6">
 
             {/* ── 페이지 헤더 ── */}
-            <div className="flex items-center gap-4 mb-6">
-              <button
-                onClick={onBack}
-                className="flex items-center justify-center w-9 h-9 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700 transition-all shadow-sm"
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
-                  RallyTrack / 영상 분석
-                </p>
-                <h1 className="text-xl font-bold text-gray-900 leading-tight">
-                  {videoInfo?.title ?? "영상 불러오는 중..."}
-                </h1>
-              </div>
+            <div className="mb-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
+                RallyTrack / 영상 분석
+              </p>
+              <h1 className="text-xl font-bold text-gray-900 leading-tight">
+                {videoInfo?.title ?? "영상 불러오는 중..."}
+              </h1>
             </div>
 
             {/* ── 메인 그리드: 영상(2/3) + 스코어·타임라인(1/3) ── */}
@@ -950,10 +955,9 @@ export function VideoPlayerPage({
               </div>
 
               {/* 우: 매치 스코어 + 타임라인 */}
-              <div className="lg:col-span-1">
+              <div className="lg:col-span-1 lg:row-span-2 flex flex-col">
                 <div
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden"
-                  style={{ minHeight: "600px" }}
+                  className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden sticky top-20 h-[calc(100vh-96px)]"
                 >
                   {/* 스코어 */}
                   <div className="px-6 pt-6 pb-5 border-b border-gray-100">
