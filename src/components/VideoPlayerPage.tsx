@@ -511,14 +511,25 @@ export function VideoPlayerPage({
       <div className="flex flex-1 overflow-hidden">
 
         {/* ══════════════════════════════════════════════════════
-            좌측 사이드바
+            좌측 사이드바 (fixed — footer 스크롤과 무관하게 고정)
            ══════════════════════════════════════════════════════ */}
+
+        {/* fixed aside가 flow에서 빠지므로 동일 너비의 spacer로 main을 밀어냄 */}
+        <div
+          className={`shrink-0 transition-all duration-300 ease-in-out ${sidebarOpen ? "w-56" : "w-14"}`}
+          aria-hidden="true"
+        />
+
         <aside
           className={`
-            relative flex flex-col bg-white border-r border-gray-200 transition-all duration-300 ease-in-out shrink-0
+            fixed left-0 top-16 z-30
+            flex flex-col bg-white
+            border-r border-gray-100
+            shadow-[2px_0_20px_rgba(0,0,0,0.08)]
+            transition-all duration-300 ease-in-out
+            h-[calc(100vh-64px)] overflow-hidden
             ${sidebarOpen ? "w-56" : "w-14"}
           `}
-          style={{ minHeight: "calc(100vh - 64px)" }}
         >
           {/* 토글 버튼 */}
           <button
