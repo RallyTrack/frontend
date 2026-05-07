@@ -641,24 +641,44 @@ export function VideoPlayerPage({
               </div>
             )}
 
-            {/* ── 1. 대시보드 ── */}
+            {/* ── 1. 네비게이션 ── */}
             <div className={`px-3 pt-5 pb-2 ${!sidebarOpen && "px-2"}`}>
               {sidebarOpen && (
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">
                   네비게이션
                 </p>
               )}
-              <button
-                onClick={() => onNavigate("dashboard")}
-                className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600
-                  ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-                title={!sidebarOpen ? "대시보드" : undefined}
-              >
-                <LayoutDashboard className="size-4 shrink-0" />
-                {sidebarOpen && (
-                  <span className="text-sm font-medium">대시보드</span>
-                )}
-              </button>
+              <div className="space-y-0.5">
+                <button
+                  onClick={() => onNavigate("dashboard")}
+                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600
+                    ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  title={!sidebarOpen ? "대시보드" : undefined}
+                >
+                  <LayoutDashboard className="size-4 shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">대시보드</span>}
+                </button>
+
+                <button
+                  disabled
+                  className={`w-full flex items-center gap-2.5 rounded-lg bg-blue-50 text-blue-600 cursor-default
+                    ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  title={!sidebarOpen ? "영상 보기 (현재 페이지)" : undefined}
+                >
+                  <Play className="size-4 shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">영상 보기</span>}
+                </button>
+
+                <button
+                  onClick={() => onNavigate("report")}
+                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600
+                    ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  title={!sidebarOpen ? "분석 페이지" : undefined}
+                >
+                  <FileText className="size-4 shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium">분석 페이지</span>}
+                </button>
+              </div>
             </div>
 
             {/* ── 2. 영상 페이지 ── */}
@@ -682,7 +702,16 @@ export function VideoPlayerPage({
               {/* 펼쳐진 서브메뉴 */}
               {sidebarOpen && videoSectionOpen && (
                 <div className="space-y-0.5 pl-1.5">
-                  {/* 2.1 원본 영상 */}
+                  {/* 2.1 미니맵 */}
+                  <div className="px-1 pt-1">
+                    <MiniCourtMap
+                      minimapVideoUrl={minimapVideoUrl}
+                      currentTime={currentTime}
+                      isPlaying={isPlaying}
+                    />
+                  </div>
+
+                  {/* 2.2 원본 영상 */}
                   <button
                     onClick={() =>
                       videoMode !== "original" && switchVideoMode("original")
@@ -705,7 +734,7 @@ export function VideoPlayerPage({
                     )}
                   </button>
 
-                  {/* 2.2 스켈레톤 영상 */}
+                  {/* 2.3 스켈레톤 영상 */}
                   <button
                     onClick={() => {
                       if (!isAnalysisAvailable || videoMode === "analyzed")
@@ -741,15 +770,6 @@ export function VideoPlayerPage({
                       </span>
                     )}
                   </button>
-
-                  {/* 2.3 미니맵 */}
-                  <div className="px-1 pt-1">
-                    <MiniCourtMap
-                      minimapVideoUrl={minimapVideoUrl}
-                      currentTime={currentTime}
-                      isPlaying={isPlaying}
-                    />
-                  </div>
                 </div>
               )}
 
@@ -789,25 +809,14 @@ export function VideoPlayerPage({
               )}
             </div>
 
-            {/* ── 3. 분석 페이지 ── */}
+            {/* ── 3. 계정 관리 ── */}
             <div
               className={`px-3 pt-1 pb-2 border-t border-gray-100 ${!sidebarOpen && "px-2"}`}
             >
               <button
-                onClick={() => onNavigate("report")}
-                className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600
-                  ${sidebarOpen ? "px-3 py-2 mt-1" : "px-2 py-2 justify-center mt-1"}`}
-                title={!sidebarOpen ? "분석 페이지" : undefined}
-              >
-                <FileText className="size-4 shrink-0" />
-                {sidebarOpen && (
-                  <span className="text-sm font-medium">분석 페이지</span>
-                )}
-              </button>
-              <button
                 onClick={() => onNavigate("account")}
                 className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600
-                  ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  ${sidebarOpen ? "px-3 py-2 mt-1" : "px-2 py-2 justify-center mt-1"}`}
                 title={!sidebarOpen ? "계정 관리" : undefined}
               >
                 <User className="size-4 shrink-0" />

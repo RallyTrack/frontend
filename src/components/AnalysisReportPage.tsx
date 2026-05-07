@@ -3,8 +3,9 @@ import {
   Award,
   Bot,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  FileText,
+  PanelLeftClose,
+  PanelLeftOpen,
   Clock,
   LayoutDashboard,
   LogOut,
@@ -60,7 +61,7 @@ interface UserInfo {
 
 interface AnalysisReportPageProps {
   videoId: string;
-  onBack: () => void;
+  onBack?: () => void;
   onJumpToVideo: (time: number) => void;
   onNavigate: (page: Page) => void;
   onLogout: () => void;
@@ -706,7 +707,6 @@ function AbilityGradeCard({ label, value, accentColor }: { label: string; value:
 
 export function AnalysisReportPage({
   videoId,
-  onBack,
   onJumpToVideo,
   onNavigate,
   onLogout,
@@ -949,9 +949,6 @@ ${coaching?.feedbackText ?? "(없음)"}
       <div className="min-h-screen bg-white">
         <Header currentPage="report" onNavigate={onNavigate} onLogout={onLogout} hasSelectedVideo user={user} />
         <main className="container mx-auto max-w-6xl px-6 py-10">
-          <button onClick={onBack} className="mb-6 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm hover:bg-gray-50">
-            ← 돌아가기
-          </button>
           <div className="rounded-xl border border-red-100 bg-red-50 p-8">
             <p className="text-sm font-bold text-red-700">리포트를 불러오지 못했습니다.</p>
             <p className="mt-1 text-xs text-red-600">{errorMsg}</p>
@@ -981,9 +978,9 @@ ${coaching?.feedbackText ?? "(없음)"}
 
   // 사이드바 nav 목록
   const navItems = [
-    { id: "dashboard" as Page, label: "대시보드", icon: <LayoutDashboard className="size-4 shrink-0" />, action: () => onNavigate("dashboard") },
-    { id: "video" as Page, label: "영상 보기", icon: <Play className="size-4 shrink-0" />, action: () => onNavigate("video") },
-    { id: "account" as Page, label: "계정 관리", icon: <User className="size-4 shrink-0" />, action: () => onNavigate("account") },
+    { id: "dashboard" as Page, label: "대시보드", icon: <LayoutDashboard className="size-4 shrink-0" />, action: () => onNavigate("dashboard"), isCurrent: false },
+    { id: "video" as Page, label: "영상 보기", icon: <Play className="size-4 shrink-0" />, action: () => onNavigate("video"), isCurrent: false },
+    { id: "report" as Page, label: "분석 페이지", icon: <FileText className="size-4 shrink-0" />, action: () => {}, isCurrent: true },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -993,24 +990,51 @@ ${coaching?.feedbackText ?? "(없음)"}
 
       <div className="flex flex-1 overflow-hidden">
         {/* ══════════════════════════════════════════════════════
-            사이드바
+            사이드바 (fixed — 스크롤과 무관하게 고정)
            ══════════════════════════════════════════════════════ */}
+
+        {/* spacer: fixed aside가 flow에서 빠지므로 동일 너비로 main을 밀어냄 */}
+        <div
+          className={`shrink-0 transition-all duration-300 ease-in-out ${sidebarOpen ? "w-60" : "w-14"}`}
+          aria-hidden="true"
+        />
+
         <aside
           className={`
-            relative flex flex-col bg-white border-r border-gray-200 transition-all duration-300 ease-in-out shrink-0
+            fixed left-0 top-16 z-30
+            flex flex-col bg-white
+            border-r border-gray-100
+            shadow-[2px_0_20px_rgba(0,0,0,0.08)]
+            transition-all duration-300 ease-in-out
+            h-[calc(100vh-64px)] overflow-hidden
             ${sidebarOpen ? "w-60" : "w-14"}
           `}
-          style={{ minHeight: "calc(100vh - 64px)" }}
         >
-          {/* 토글 버튼 */}
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            className="absolute -right-3 top-6 z-10 flex items-center justify-center w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-shadow text-gray-500 hover:text-gray-700"
-          >
-            {sidebarOpen ? <ChevronLeft className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-          </button>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            {/* 토글 버튼 */}
+            {sidebarOpen ? (
+              <div className="flex items-center gap-2 pl-[10px] pt-4 pb-2">
+                <button
+                  onClick={() => setSidebarOpen((v) => !v)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors shrink-0"
+                  title="사이드바 접기"
+                >
+                  <PanelLeftClose className="size-4" />
+                </button>
+                <span className="text-sm font-semibold text-gray-400 tracking-wide">접기</span>
+              </div>
+            ) : (
+              <div className="flex justify-center pt-4 pb-2">
+                <button
+                  onClick={() => setSidebarOpen((v) => !v)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  title="사이드바 펼치기"
+                >
+                  <PanelLeftOpen className="size-4" />
+                </button>
+              </div>
+            )}
 
-          <div className="flex flex-col h-full overflow-hidden">
             {/* 네비게이션 */}
             <div className={`px-3 pt-5 pb-3 border-b border-gray-100 ${sidebarOpen ? "" : "px-2"}`}>
               {sidebarOpen && (
@@ -1020,8 +1044,13 @@ ${coaching?.feedbackText ?? "(없음)"}
                 {navItems.map((item) => (
                   <button
                     key={item.id}
-                    onClick={item.action}
-                    className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                    onClick={item.isCurrent ? undefined : item.action}
+                    disabled={item.isCurrent}
+                    className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left ${
+                      item.isCurrent
+                        ? `bg-blue-50 text-blue-600 cursor-default ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
+                        : `text-gray-600 hover:bg-blue-50 hover:text-blue-600 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
+                    }`}
                     title={!sidebarOpen ? item.label : undefined}
                   >
                     {item.icon}
@@ -1062,17 +1091,30 @@ ${coaching?.feedbackText ?? "(없음)"}
               )}
             </div>
 
-            {/* 로그아웃 */}
-            <div className={`border-t border-gray-100 p-3 ${sidebarOpen ? "" : "px-2"}`}>
-              <button
-                onClick={onLogout}
-                className={`w-full flex items-center gap-2.5 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-                title={!sidebarOpen ? "로그아웃" : undefined}
-              >
-                <LogOut className="size-4 shrink-0" />
-                {sidebarOpen && <span className="text-sm font-medium">로그아웃</span>}
-              </button>
-            </div>
+          </div>
+
+          {/* 계정 관리 */}
+          <div className={`shrink-0 border-t border-gray-100 p-3 ${sidebarOpen ? "" : "px-2"}`}>
+            <button
+              onClick={() => onNavigate("account")}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              title={!sidebarOpen ? "계정 관리" : undefined}
+            >
+              <User className="size-4 shrink-0" />
+              {sidebarOpen && <span className="text-sm font-medium">계정 관리</span>}
+            </button>
+          </div>
+
+          {/* 로그아웃 */}
+          <div className={`shrink-0 border-t border-gray-100 p-3 ${sidebarOpen ? "" : "px-2"}`}>
+            <button
+              onClick={onLogout}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              title={!sidebarOpen ? "로그아웃" : undefined}
+            >
+              <LogOut className="size-4 shrink-0" />
+              {sidebarOpen && <span className="text-sm font-medium">로그아웃</span>}
+            </button>
           </div>
         </aside>
 
@@ -1081,14 +1123,6 @@ ${coaching?.feedbackText ?? "(없음)"}
            ══════════════════════════════════════════════════════ */}
         <main className="flex-1 overflow-y-auto" ref={mainScrollRef}>
           <div className="max-w-5xl mx-auto px-6 py-10">
-            {/* Back */}
-            <button
-              onClick={onBack}
-              className="mb-6 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm transition-colors"
-            >
-              ← 돌아가기
-            </button>
-
             <div className="space-y-6">
               {/* ── 1. Match Summary ── */}
               <section id="section-summary" className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm scroll-mt-6">
