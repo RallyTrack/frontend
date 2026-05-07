@@ -86,7 +86,7 @@ export function OnboardingNav({ onOpenLogin, onOpenSignup, isModalOpen }: Onboar
                       transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .onboarding-logo-wrap.moved {
-          left: 24px;        /* 좌측 패딩 */
+          left: 32px;        /* 좌측 패딩 (px-8) */
           transform: translate(0, -50%);
         }
       `}</style>
@@ -100,11 +100,11 @@ export function OnboardingNav({ onOpenLogin, onOpenSignup, isModalOpen }: Onboar
           }
         `}
       >
-        <div className="relative max-w-[1400px] mx-auto h-full px-6">
+        <div className="relative h-full px-8">
 
           {/* ── 좌측: 상태 텍스트 ── */}
           <div
-            className={`onboarding-nav-left absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-4 font-mono text-xs uppercase tracking-widest overflow-hidden ${
+            className={`onboarding-nav-left absolute left-8 top-1/2 -translate-y-1/2 flex items-center gap-4 font-mono text-xs uppercase tracking-widest overflow-hidden ${
               transitioning ? "hide" : ""
             }`}
             style={{ maxWidth: "340px" }}
@@ -127,7 +127,7 @@ export function OnboardingNav({ onOpenLogin, onOpenSignup, isModalOpen }: Onboar
           </div>
 
           {/* ── 우측: 버튼 ── */}
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-4 font-mono text-xs uppercase tracking-widest">
+          <div className="absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-4 font-mono text-xs uppercase tracking-widest">
             <button
               onClick={() => withTransition(onOpenLogin)}
               className="text-slate-500 font-bold hover:text-[#1a2b4c] transition-colors whitespace-nowrap"

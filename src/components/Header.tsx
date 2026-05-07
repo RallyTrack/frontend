@@ -58,7 +58,7 @@ export function Header({
       `}</style>
 
       <header className="sticky top-0 z-50 h-16 bg-white border-b border-slate-100 shadow-[0_1px_12px_rgba(0,0,0,0.06)]">
-        <div className="relative h-full max-w-[1440px] mx-auto px-6 flex items-center justify-between">
+        <div className="relative h-full px-8 flex items-center justify-between">
 
           {/* ── 로고 ── */}
           <button
