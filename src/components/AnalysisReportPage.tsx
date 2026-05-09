@@ -1027,8 +1027,10 @@ export function AnalysisReportPage({
         const coaching = playerData.aiCoaching;
         const playerLabel =
           activePlayer === "bottom" ? "Bottom Player" : "Top Player";
+        // 현재 대부분의 타격은 others로 집계됨 (AI stroke 분류 미완성)
         const playerStrokeTotal =
-          stroke.smash + stroke.clear + stroke.drop + stroke.drive;
+          (stroke.smash ?? 0) + (stroke.clear ?? 0) + (stroke.drop ?? 0) +
+          (stroke.drive ?? 0) + (stroke.serve ?? 0) + (stroke.net ?? 0) + (stroke.others ?? 0);
 
         const prompt = `
 당신은 전문 배드민턴 코치입니다.
@@ -1041,7 +1043,7 @@ export function AnalysisReportPage({
 
 [${playerLabel} 개인 스트로크]
 - 개인 스트로크 합계: ${playerStrokeTotal}회
-- Smash: ${stroke.smash}회, Clear: ${stroke.clear}회, Drop: ${stroke.drop}회, Drive: ${stroke.drive}회
+- Smash: ${stroke.smash}회, Clear: ${stroke.clear}회, Drop: ${stroke.drop}회, Drive: ${stroke.drive}회, Serve: ${stroke.serve}회, Net: ${stroke.net}회, Others(미분류): ${stroke.others}회
 
 [${playerLabel} 능력치 (0~100)]
 - 스매시: ${ability.smash} / 평균 랠리 시간: ${ability.AvgRallyTime} / 속도: ${ability.speed}
