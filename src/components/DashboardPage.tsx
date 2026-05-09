@@ -440,6 +440,7 @@ export function DashboardPage({
     null,
   );
   const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
+  const [videoDuration, setVideoDuration] = useState<number>(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -573,6 +574,7 @@ export function DashboardPage({
       setFps(30);
       const tf = Math.floor(video.duration * 30);
       setTotalFrames(tf);
+      setVideoDuration(Math.round(video.duration));
       setVideoSize({ w: video.videoWidth, h: video.videoHeight });
       video.currentTime = 0;
     };
@@ -791,6 +793,7 @@ export function DashboardPage({
     setFrameIndex(0);
     setCapturedDataUrl(null);
     setThumbnailBlob(null);
+    setVideoDuration(0);
     setSubmitResult(null);
 
     if (videoUrlRef.current) {
@@ -817,6 +820,7 @@ export function DashboardPage({
     const currentPoints = [...points];
     const currentThumbnailBlob = thumbnailBlob;
     const currentThumbnailDataUrl = capturedDataUrl;
+    const currentVideoDuration = videoDuration;
 
     const tempId = `temp-${Date.now()}`;
 
@@ -841,6 +845,7 @@ export function DashboardPage({
       formData.append("title", currentVideoName);
       formData.append("thumbnailImage", currentThumbnailBlob, "thumbnail.jpg");
       formData.append("courtCorners", buildCourtCornersPayload(currentPoints));
+      formData.append("durationSeconds", String(currentVideoDuration));
 
       const res = await fetch("/api/v1/videos", {
         method: "POST",

@@ -18,6 +18,9 @@ export type PlayerData = {
     clear: number;
     drop: number;
     drive: number;
+    serve: number;
+    net: number;
+    others: number;
   };
   abilityMetrics: {
     smash: number;
@@ -47,26 +50,6 @@ export type ReportResponse = {
     players: {
       top: PlayerData;
       bottom: PlayerData;
-    };
-    // Legacy flat fields (kept for backward-compat; mirrors players.bottom)
-    positionAnalysis: {
-      heatmapData: HeatmapPoint[];
-    };
-    strokeTypes: {
-      smash: number;
-      clear: number;
-      drop: number;
-      drive: number;
-    };
-    abilityMetrics: {
-      smash: number;
-      AvgRallyTime: number;
-      speed: number;
-      distance: number;
-      errorRate: number;
-    };
-    aiCoaching: {
-      feedbackText: string;
     };
   };
 };
