@@ -25,7 +25,7 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
         myScore: data.bottomPlayerScore ?? 0,
         opponentScore: data.topPlayerScore ?? 0,
         totalStrokeCount: data.totalHits ?? 0,
-        matchTime: "분석 완료",
+        matchTime: data.summary?.matchTime ?? "분석 완료",
       },
       players: {
         top: data.players?.top ?? buildEmptyPlayerData(),
