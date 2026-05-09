@@ -28,12 +28,12 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
         matchTime: "분석 완료",
       },
       players: {
-        top: buildEmptyPlayerData(),
-        bottom: buildEmptyPlayerData(),
+        top: data.players?.top ?? buildEmptyPlayerData(),
+        bottom: data.players?.bottom ?? buildEmptyPlayerData(),
       },
       // legacy flat fields
       positionAnalysis: { heatmapData: [] },
-      strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0 },
+      strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, others: 0 },
       abilityMetrics: { smash: 0, AvgRallyTime: 0, speed: 0, distance: 0, errorRate: 0 },
       aiCoaching: { feedbackText: "" },
     },
@@ -43,7 +43,7 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
 function buildEmptyPlayerData() {
   return {
     positionAnalysis: { heatmapData: [] },
-    strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0 },
+    strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, others: 0 },
     abilityMetrics: { smash: 0, AvgRallyTime: 0, speed: 0, distance: 0, errorRate: 0 },
     aiCoaching: { feedbackText: "" },
   };

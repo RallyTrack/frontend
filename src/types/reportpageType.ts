@@ -18,6 +18,9 @@ export type PlayerData = {
     clear: number;
     drop: number;
     drive: number;
+    serve: number;
+    net: number;
+    others: number;
   };
   abilityMetrics: {
     smash: number;
@@ -57,6 +60,9 @@ export type ReportResponse = {
       clear: number;
       drop: number;
       drive: number;
+      serve: number;
+      net: number;
+      others: number;
     };
     abilityMetrics: {
       smash: number;
