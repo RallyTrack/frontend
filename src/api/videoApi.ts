@@ -1,51 +1,51 @@
+// src/api/videoApi.ts
 import { apiClient } from './apiClient';
 
 export interface VideoInfo {
-  videoId: number;
+  videoId: number | string;
   title: string;
   videoUrl: string;
   skeletonVideoUrl?: string;
-  thumbnailUrl: string;
-  duration: number;
+  minimapVideoUrl?: string;         // ← 추가: 코트 추적 미니맵 영상
+  thumbnailUrl?: string;
+  duration?: number;
+  uploadDate?: string;
+  status?: string;
 }
 
 export interface MatchSummary {
-  matchScore: string;
+  matchScore?: string;
+  totalRallies?: number;
+  totalDuration?: number;
+  [key: string]: any;
 }
 
 export interface ApiTimelineEvent {
-  eventId: number;
+  eventId?: number | string;
+  type: string;
   timestamp: number;
-  displayTime: string;
-  type: string; // Korean type e.g. '득점', '랠리', '스매시'
-  title: string;
-  description: string;
+  displayTime?: string;
+  title?: string;
+  description?: string;
+  [key: string]: any;
 }
 
-export interface VideoDetailData {
+export interface VideoDetailResponse {
   videoInfo: VideoInfo;
   matchSummary: MatchSummary;
   timelineEvents: ApiTimelineEvent[];
 }
 
-export interface VideoDetailResponse {
-  code: number;
-  message: string;
-  data: VideoDetailData;
-}
+export async function fetchVideoDetail(videoId: string): Promise<VideoDetailResponse> {
+  const response = await apiClient(`/api/v1/videos/${videoId}`);
+  if (!response.ok) throw new Error(`Failed to fetch video detail: ${response.status}`);
+  const json = await response.json();
 
-export async function fetchVideoDetail(
-  videoId: string | number
-): Promise<VideoDetailData> {
-  // 이 엔드포인트는 백엔드에서 인증 없이도 동작하지만,
-  // apiClient를 통해 일관성 있게 처리합니다.
-  const res = await apiClient(`/api/v1/videos/${videoId}`);
- 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Failed to fetch video detail: ${res.status} ${text}`);
-  }
- 
-  const json = (await res.json()) as VideoDetailResponse;
-  return json.data;
+  // API 응답 구조 정규화
+  const data = json.data ?? json;
+  return {
+    videoInfo: data.videoInfo ?? data,
+    matchSummary: data.matchSummary ?? {},
+    timelineEvents: data.timelineEvents ?? data.events ?? [],
+  };
 }
