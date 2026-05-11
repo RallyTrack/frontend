@@ -952,6 +952,8 @@ export function AnalysisReportPage({
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [reportNotReady, setReportNotReady] = useState(false); // 404 → 분석 준비 중
+
 
   const [briefings, setBriefings] = useState<Record<PlayerKey, string>>({
     top: "",
@@ -994,9 +996,16 @@ export function AnalysisReportPage({
         const data = await fetchReport(videoId);
         if (!alive) return;
         setReport(data);
-      } catch (e: any) {
+            } catch (e: any) {
         if (!alive) return;
-        setErrorMsg(e?.message ?? "리포트를 불러오지 못했습니다.");
+        // 404: 분석 완료 전 상태 — 일반 오류가 아닌 "준비 중" UI 표시
+        const status = (e as any)?.status ?? 0;
+        const msg = (e?.message ?? "") as string;
+        if (status === 404 || msg.includes("404")) {
+          setReportNotReady(true);
+        } else {
+          setErrorMsg(e?.message ?? "리포트를 불러오지 못했습니다.");
+        }
       } finally {
         if (!alive) return;
         setLoading(false);
@@ -1203,6 +1212,58 @@ ${coaching?.feedbackText ?? "(없음)"}
           </main>
         </div>
 
+        <Footer />
+      </div>
+    );
+  }
+  // ── 분석 리포트 준비 중 (404) ────────────────────────────────────
+  if (reportNotReady) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <Header
+          currentPage="report"
+          onNavigate={onNavigate}
+          onLogout={onLogout}
+          hasSelectedVideo
+          user={user}
+        />
+        <main className="flex-1 flex items-center justify-center px-6 py-20">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 rounded-3xl bg-violet-50 border border-violet-100 flex items-center justify-center mx-auto mb-6 shadow-sm">
+              <FileText className="size-9 text-violet-400" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              분석 리포트 준비 중
+            </h2>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              AI가 경기 영상을 분석하고 있습니다.<br />
+              분석이 완료되면 리포트가 자동으로 생성됩니다.
+            </p>
+            <div className="flex items-center justify-center gap-1.5 mb-8">
+              {[0, 150, 300].map((delay) => (
+                <span
+                  key={delay}
+                  className="h-2 w-2 rounded-full bg-violet-400 animate-bounce"
+                  style={{ animationDelay: `${delay}ms` }}
+                />
+              ))}
+            </div>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => onNavigate("dashboard")}
+                className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+              >
+                대시보드로
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-5 py-2.5 bg-violet-600 text-white text-sm font-semibold rounded-xl hover:bg-violet-700 transition-colors shadow-sm shadow-violet-200"
+              >
+                새로고침
+              </button>
+            </div>
+          </div>
+        </main>
         <Footer />
       </div>
     );
