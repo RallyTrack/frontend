@@ -28,7 +28,10 @@ import { Header, type Page } from "./Header";
 import {
   fetchDashboard,
   deleteVideo,
+  fetchActivityStats,
+  fetchPerformanceTrend,
   DashboardResponse,
+  ActivityDataPoint,
 } from "../api/dashboardApi";
 import { VideoItem } from "../components/VideoItem";
 import { Footer } from "./ui/footer";
@@ -74,6 +77,13 @@ interface UploadApiResponse {
     status?: string;
     thumbnailUrl?: string;
   };
+}
+
+// ── 퍼포먼스 트렌드 데이터 타입 ──────────────────────────────────
+interface TrendData {
+  smash: number[];
+  defense: number[];
+  accuracy: number[];
 }
 
 const POINT_GUIDES = [
@@ -122,6 +132,7 @@ function removeLocalThumbnail(videoId: string) {
   }
 }
 
+// ── TrendSparkline ────────────────────────────────────────────────
 function TrendSparkline({ data, color }: { data: number[]; color: string }) {
   const max = Math.max(...data);
   const min = Math.min(...data);
@@ -158,92 +169,31 @@ function TrendSparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
-const BADMINTON_TIPS = [
-  {
-    icon: "🏸",
-    title: "스매시 파워업",
-    desc: "임팩트 순간 손목 스냅을 극대화하면 셔틀 속도가 15~20% 향상됩니다.",
-  },
-  {
-    icon: "👣",
-    title: "풋워크 기초",
-    desc: "리턴 기준 위치(센터)로 빠르게 복귀하는 습관이 수비력을 크게 높입니다.",
-  },
-  {
-    icon: "🎯",
-    title: "드롭샷 전략",
-    desc: "네트 근처 빈 공간을 노리는 드롭은 상대 체력 소모에 효과적입니다.",
-  },
-  {
-    icon: "💪",
-    title: "코어 강화",
-    desc: "복근·허리 근력 강화로 스윙 안정성과 부상 방지 두 마리를 잡으세요.",
-  },
-  {
-    icon: "👁️",
-    title: "셔틀 예측",
-    desc: "상대 라켓 각도와 어깨 방향을 읽으면 0.1초 먼저 움직일 수 있습니다.",
-  },
-  {
-    icon: "🌬️",
-    title: "호흡 관리",
-    desc: "스트로크 직전 짧게 내쉬는 호흡이 근육 긴장을 줄이고 정확도를 높입니다.",
-  },
-];
-
-const MOCK_TREND = {
-  smash: [62, 68, 65, 72, 70, 75, 75],
-  defense: [70, 72, 75, 73, 78, 80, 88],
-  accuracy: [60, 65, 63, 70, 75, 78, 80],
-};
-
-const MOCK_ACTIVITY = [
-  { day: "월", usageCount: 5, uploadCount: 1 },
-  { day: "화", usageCount: 8, uploadCount: 2 },
-  { day: "수", usageCount: 4, uploadCount: 0 },
-  { day: "목", usageCount: 10, uploadCount: 3 },
-  { day: "금", usageCount: 7, uploadCount: 1 },
-  { day: "토", usageCount: 12, uploadCount: 4 },
-  { day: "일", usageCount: 6, uploadCount: 1 },
-];
-
-function toDateString(value?: string) {
-  if (!value) return new Date().toISOString().split("T")[0];
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return new Date().toISOString().split("T")[0];
-  return d.toISOString().split("T")[0];
+// ── 스켈레톤: TrendSparkline 플레이스홀더 ──────────────────────────
+function SparklineSkeleton() {
+  return (
+    <div className="w-[120px] h-[36px] rounded bg-slate-100 animate-pulse" />
+  );
 }
 
-function buildCourtCornersPayload(points: Point[]) {
-  return JSON.stringify({
-    topLeft: {
-      x: points[0].x,
-      y: points[0].y,
-    },
-    topRight: {
-      x: points[1].x,
-      y: points[1].y,
-    },
-    bottomRight: {
-      x: points[2].x,
-      y: points[2].y,
-    },
-    bottomLeft: {
-      x: points[3].x,
-      y: points[3].y,
-    },
-    netTopLeft: {
-      x: points[4].x,
-      y: points[4].y,
-    },
-    netTopRight: {
-      x: points[5].x,
-      y: points[5].y,
-    },
-  });
-}
+// ── ActivityChartCard (undefined=로딩, null=API없음, []=빈, data=렌더) ──
+function ActivityChartCard({
+  activityData,
+}: {
+  activityData: ActivityDataPoint[] | null | undefined;
+}) {
+  const isLoading = activityData === undefined;
+  const isFailed = activityData === null;
+  const isEmpty = Array.isArray(activityData) && activityData.length === 0;
+  const hasData = Array.isArray(activityData) && activityData.length > 0;
 
-function ActivityChartCard() {
+  const totalUsage = hasData
+    ? activityData!.reduce((s, i) => s + i.usageCount, 0)
+    : 0;
+  const totalUpload = hasData
+    ? activityData!.reduce((s, i) => s + i.uploadCount, 0)
+    : 0;
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-8">
       <div className="flex items-center gap-2 mb-2">
@@ -257,96 +207,119 @@ function ActivityChartCard() {
         사이트 사용 횟수와 업로드된 영상 수를 한 번에 확인할 수 있습니다.
       </p>
 
+      {/* 차트 영역 */}
       <div className="h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart
-            data={MOCK_ACTIVITY}
-            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-          >
-            <CartesianGrid stroke="#f1f5f9" vertical={false} />
-            <XAxis
-              dataKey="day"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 12, fill: "#94a3b8" }}
-            />
-            <YAxis
-              yAxisId="left"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 12, fill: "#94a3b8" }}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 12, fill: "#94a3b8" }}
-            />
-            <Tooltip
-              contentStyle={{
-                borderRadius: 12,
-                border: "1px solid #e5e7eb",
-                boxShadow: "0 6px 24px rgba(15,23,42,0.08)",
-                fontSize: 12,
-              }}
-              formatter={(value: number, name: string) => {
-                if (name === "usageCount") return [`${value}회`, "사이트 사용"];
-                if (name === "uploadCount")
-                  return [`${value}개`, "영상 업로드"];
-                return [value, name];
-              }}
-            />
-            <Legend
-              wrapperStyle={{
-                fontSize: "12px",
-                color: "#64748b",
-                paddingTop: "12px",
-              }}
-              formatter={(value) => {
-                if (value === "usageCount") return "사이트 사용 횟수";
-                if (value === "uploadCount") return "업로드 영상 수";
-                return value;
-              }}
-            />
-            <Bar
-              yAxisId="left"
-              dataKey="uploadCount"
-              name="uploadCount"
-              radius={[8, 8, 0, 0]}
-              barSize={26}
-              fill="#60a5fa"
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="usageCount"
-              name="usageCount"
-              stroke="#2563eb"
-              strokeWidth={3}
-              dot={{ r: 4, fill: "#2563eb" }}
-              activeDot={{ r: 5 }}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+        {isLoading ? (
+          /* 로딩 스켈레톤 */
+          <div className="h-full rounded-xl bg-slate-100 animate-pulse" />
+        ) : isFailed || isEmpty ? (
+          /* API 없음 / 빈 데이터 → 빈 차트 프레임 */
+          <div className="h-full rounded-xl border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-2">
+            <Activity className="size-6 text-slate-300" />
+            <p className="text-xs text-slate-400 font-medium">
+              {isFailed ? "데이터를 불러올 수 없습니다" : "활동 데이터가 없습니다"}
+            </p>
+          </div>
+        ) : (
+          /* 실제 차트 */
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              data={activityData!}
+              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid stroke="#f1f5f9" vertical={false} />
+              <XAxis
+                dataKey="day"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "#94a3b8" }}
+              />
+              <YAxis
+                yAxisId="left"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "#94a3b8" }}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 12, fill: "#94a3b8" }}
+              />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  boxShadow: "0 6px 24px rgba(15,23,42,0.08)",
+                  fontSize: 12,
+                }}
+                formatter={(value: number, name: string) => {
+                  if (name === "usageCount") return [`${value}회`, "사이트 사용"];
+                  if (name === "uploadCount") return [`${value}개`, "영상 업로드"];
+                  return [value, name];
+                }}
+              />
+              <Legend
+                wrapperStyle={{
+                  fontSize: "12px",
+                  color: "#64748b",
+                  paddingTop: "12px",
+                }}
+                formatter={(value) => {
+                  if (value === "usageCount") return "사이트 사용 횟수";
+                  if (value === "uploadCount") return "업로드 영상 수";
+                  return value;
+                }}
+              />
+              <Bar
+                yAxisId="left"
+                dataKey="uploadCount"
+                name="uploadCount"
+                radius={[8, 8, 0, 0]}
+                barSize={26}
+                fill="#60a5fa"
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="usageCount"
+                name="usageCount"
+                stroke="#2563eb"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "#2563eb" }}
+                activeDot={{ r: 5 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
+      {/* 요약 수치 */}
       <div className="grid grid-cols-2 gap-3 mt-5">
         <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
           <p className="text-[11px] font-bold text-blue-500 uppercase tracking-widest mb-1">
             총 사이트 사용
           </p>
-          <p className="text-lg font-black text-blue-700">
-            {MOCK_ACTIVITY.reduce((s, i) => s + i.usageCount, 0)}회
-          </p>
+          {isLoading ? (
+            <div className="h-6 w-16 bg-blue-100 rounded-full animate-pulse" />
+          ) : (
+            <p className="text-lg font-black text-blue-700">
+              {hasData ? `${totalUsage}회` : "—"}
+            </p>
+          )}
         </div>
         <div className="rounded-xl bg-sky-50 border border-sky-100 px-4 py-3">
           <p className="text-[11px] font-bold text-sky-500 uppercase tracking-widest mb-1">
             총 업로드 수
           </p>
-          <p className="text-lg font-black text-sky-700">
-            {MOCK_ACTIVITY.reduce((s, i) => s + i.uploadCount, 0)}개
-          </p>
+          {isLoading ? (
+            <div className="h-6 w-16 bg-sky-100 rounded-full animate-pulse" />
+          ) : (
+            <p className="text-lg font-black text-sky-700">
+              {hasData ? `${totalUpload}개` : "—"}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -406,6 +379,74 @@ function StepIndicator({ step }: { step: ModalStep }) {
   );
 }
 
+const BADMINTON_TIPS = [
+  {
+    icon: "🏸",
+    title: "스매시 파워업",
+    desc: "임팩트 순간 손목 스냅을 극대화하면 셔틀 속도가 15~20% 향상됩니다.",
+  },
+  {
+    icon: "👣",
+    title: "풋워크 기초",
+    desc: "리턴 기준 위치(센터)로 빠르게 복귀하는 습관이 수비력을 크게 높입니다.",
+  },
+  {
+    icon: "🎯",
+    title: "드롭샷 전략",
+    desc: "네트 근처 빈 공간을 노리는 드롭은 상대 체력 소모에 효과적입니다.",
+  },
+  {
+    icon: "💪",
+    title: "코어 강화",
+    desc: "복근·허리 근력 강화로 스윙 안정성과 부상 방지 두 마리를 잡으세요.",
+  },
+  {
+    icon: "👁️",
+    title: "셔틀 예측",
+    desc: "상대 라켓 각도와 어깨 방향을 읽으면 0.1초 먼저 움직일 수 있습니다.",
+  },
+  {
+    icon: "🌬️",
+    title: "호흡 관리",
+    desc: "스트로크 직전 짧게 내쉬는 호흡이 근육 긴장을 줄이고 정확도를 높입니다.",
+  },
+];
+
+function toDateString(value?: string) {
+  if (!value) return new Date().toISOString().split("T")[0];
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return new Date().toISOString().split("T")[0];
+  return d.toISOString().split("T")[0];
+}
+
+function buildCourtCornersPayload(points: Point[]) {
+  return JSON.stringify({
+    topLeft: { x: points[0].x, y: points[0].y },
+    topRight: { x: points[1].x, y: points[1].y },
+    bottomRight: { x: points[2].x, y: points[2].y },
+    bottomLeft: { x: points[3].x, y: points[3].y },
+    netTopLeft: { x: points[4].x, y: points[4].y },
+    netTopRight: { x: points[5].x, y: points[5].y },
+  });
+}
+
+// ── 비디오 status 정규화 ──────────────────────────────────────────
+function normalizeStatus(
+  rawStatus?: string,
+  playTime?: string,
+): "uploading" | "processing" | "completed" | "error" {
+  if (!rawStatus) {
+    // playTime 기반 fallback (기존 로직 유지)
+    if (playTime === "분석 중") return "processing";
+    return "completed";
+  }
+  const s = rawStatus.toUpperCase();
+  if (s === "PROCESSING" || s === "processing") return "processing";
+  if (s === "FAILED" || s === "error") return "error";
+  if (s === "UPLOADING" || s === "uploading") return "uploading";
+  return "completed";
+}
+
 export function DashboardPage({
   onLogout,
   onViewVideo,
@@ -422,18 +463,25 @@ export function DashboardPage({
   >(null);
   const [videos, setVideos] = useState<VideoRecord[]>([]);
 
-  const [modalStep, setModalStep] = useState<ModalStep>("upload");
+  // ── 활동 통계: undefined=로딩중, null=실패, ActivityDataPoint[]=데이터 ──
+  const [activityData, setActivityData] = useState<
+    ActivityDataPoint[] | null | undefined
+  >(undefined);
 
+  // ── 퍼포먼스 트렌드: undefined=로딩중, null=실패, TrendData=데이터 ──
+  const [trendData, setTrendData] = useState<TrendData | null | undefined>(
+    undefined,
+  );
+
+  const [modalStep, setModalStep] = useState<ModalStep>("upload");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [videoName, setVideoName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
-
   const [frameIndex, setFrameIndex] = useState(0);
   const [totalFrames, setTotalFrames] = useState(0);
   const [fps, setFps] = useState(30);
   const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
-
   const [points, setPoints] = useState<Point[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<"success" | "error" | null>(
@@ -448,34 +496,22 @@ export function DashboardPage({
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const videoUrlRef = useRef<string | null>(null);
 
-  // ✅ 수정: thumbnail 필드도 함께 업데이트하여 화면에 표시되도록 변경
   const tryPromoteServerThumbnail = useCallback(
     (videoId: string, serverThumbnail?: string) => {
       if (!serverThumbnail) return;
-
       const img = new Image();
-
       img.onload = () => {
         setVideos((prev) =>
           prev.map((video) =>
             video.id === videoId
-              ? {
-                  ...video,
-                  thumbnail: serverThumbnail, // ✅ 실제 표시되는 필드 업데이트
-                  serverThumbnail,
-                }
+              ? { ...video, thumbnail: serverThumbnail, serverThumbnail }
               : video,
           ),
         );
       };
-
       img.onerror = () => {
-        console.warn("서버 썸네일 아직 사용 불가:", {
-          videoId,
-          serverThumbnail,
-        });
+        console.warn("서버 썸네일 아직 사용 불가:", { videoId, serverThumbnail });
       };
-
       img.src = serverThumbnail;
     },
     [],
@@ -489,7 +525,6 @@ export function DashboardPage({
       const incomingVideos: VideoRecord[] = json.data.recentVideos.map((v) => {
         const id = String(v.videoId);
         const localThumb = loadLocalThumbnail(id);
-
         return {
           id,
           name: v.title,
@@ -498,12 +533,11 @@ export function DashboardPage({
           score: v.matchScore,
           thumbnail: localThumb ?? v.thumbnailUrl,
           serverThumbnail: v.thumbnailUrl,
-          status: v.playTime === "분석 중" ? "processing" : "completed",
+          status: normalizeStatus(v.status, v.playTime),
         };
       });
 
       setVideos(incomingVideos);
-
       incomingVideos.forEach((video) => {
         if (video.serverThumbnail) {
           tryPromoteServerThumbnail(video.id, video.serverThumbnail);
@@ -516,9 +550,37 @@ export function DashboardPage({
     }
   }, [tryPromoteServerThumbnail]);
 
+  // ── 활동 통계 fetch ──────────────────────────────────────────────
+  const fetchActivity = useCallback(async () => {
+    setActivityData(undefined); // 로딩 시작
+    try {
+      const json = await fetchActivityStats();
+      setActivityData(json.data.stats ?? []);
+    } catch {
+      setActivityData(null); // API 실패 → null
+    }
+  }, []);
+
+  // ── 퍼포먼스 트렌드 fetch ────────────────────────────────────────
+  const fetchTrend = useCallback(async () => {
+    setTrendData(undefined); // 로딩 시작
+    try {
+      const json = await fetchPerformanceTrend();
+      setTrendData({
+        smash: json.data.smash,
+        defense: json.data.defense,
+        accuracy: json.data.accuracy,
+      });
+    } catch {
+      setTrendData(null); // API 실패 → null
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchActivity();
+    fetchTrend();
+  }, [fetchData, fetchActivity, fetchTrend]);
 
   useEffect(() => {
     const iv = setInterval(
@@ -542,22 +604,16 @@ export function DashboardPage({
 
   const handleDelete = async (id: string) => {
     removeLocalThumbnail(id);
-
     if (id.startsWith("temp-")) {
       setVideos((p) => p.filter((v) => v.id !== id));
       return;
     }
-
     if (confirm("이 영상을 삭제하시겠습니까?")) {
       try {
         await deleteVideo(id);
         setVideos((p) => p.filter((v) => v.id !== id));
-
         if (stats) {
-          setStats({
-            ...stats,
-            totalVideos: Math.max(0, stats.totalVideos - 1),
-          });
+          setStats({ ...stats, totalVideos: Math.max(0, stats.totalVideos - 1) });
         }
       } catch (e) {
         alert("삭제 중 오류가 발생했습니다.");
@@ -569,7 +625,6 @@ export function DashboardPage({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || modalStep !== "frame") return;
-
     const onLoaded = () => {
       setFps(30);
       const tf = Math.floor(video.duration * 30);
@@ -578,7 +633,6 @@ export function DashboardPage({
       setVideoSize({ w: video.videoWidth, h: video.videoHeight });
       video.currentTime = 0;
     };
-
     video.addEventListener("loadedmetadata", onLoaded);
     return () => video.removeEventListener("loadedmetadata", onLoaded);
   }, [modalStep]);
@@ -586,23 +640,17 @@ export function DashboardPage({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || totalFrames === 0 || modalStep !== "frame") return;
-
     video.currentTime = frameIndex / fps;
-
     const onSeeked = () => {
       const canvas = frameCanvasRef.current;
       if (!canvas) return;
-
       canvas.width = video.videoWidth || 1280;
       canvas.height = video.videoHeight || 720;
-
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       setCapturedDataUrl(canvas.toDataURL("image/jpeg", 0.92));
     };
-
     video.addEventListener("seeked", onSeeked);
     return () => video.removeEventListener("seeked", onSeeked);
   }, [frameIndex, fps, totalFrames, modalStep]);
@@ -611,29 +659,22 @@ export function DashboardPage({
     const canvas = overlayCanvasRef.current;
     const img = cornerImgRef.current;
     if (!canvas || !img) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const scaleX = canvas.width / (videoSize.w || img.naturalWidth || canvas.width);
+    const scaleY = canvas.height / (videoSize.h || img.naturalHeight || canvas.height);
 
-    const scaleX =
-      canvas.width / (videoSize.w || img.naturalWidth || canvas.width);
-    const scaleY =
-      canvas.height / (videoSize.h || img.naturalHeight || canvas.height);
-
-    // 코트 라인 (4개 포인트가 찍혔을 때)
     if (points.length >= 4) {
       ctx.beginPath();
-      ctx.moveTo(points[0].x * scaleX, points[0].y * scaleY); // TL
-      ctx.lineTo(points[1].x * scaleX, points[1].y * scaleY); // TR
-      ctx.lineTo(points[2].x * scaleX, points[2].y * scaleY); // BR
-      ctx.lineTo(points[3].x * scaleX, points[3].y * scaleY); // BL
+      ctx.moveTo(points[0].x * scaleX, points[0].y * scaleY);
+      ctx.lineTo(points[1].x * scaleX, points[1].y * scaleY);
+      ctx.lineTo(points[2].x * scaleX, points[2].y * scaleY);
+      ctx.lineTo(points[3].x * scaleX, points[3].y * scaleY);
       ctx.closePath();
-
       ctx.strokeStyle = "rgba(59,130,246,0.9)";
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 3]);
@@ -642,8 +683,6 @@ export function DashboardPage({
       ctx.fill();
       ctx.setLineDash([]);
     }
-
-    // 네트 라인 (6개 포인트가 모두 찍혔을 때)
     if (points.length === 6) {
       ctx.beginPath();
       ctx.moveTo(points[4].x * scaleX, points[4].y * scaleY);
@@ -654,17 +693,14 @@ export function DashboardPage({
       ctx.stroke();
       ctx.setLineDash([]);
     }
-
     points.forEach((pt, i) => {
       const g = POINT_GUIDES[i];
       const cx = pt.x * scaleX;
       const cy = pt.y * scaleY;
-
       ctx.beginPath();
       ctx.arc(cx, cy, 12, 0, Math.PI * 2);
       ctx.fillStyle = `${g.color}33`;
       ctx.fill();
-
       ctx.beginPath();
       ctx.arc(cx, cy, 6, 0, Math.PI * 2);
       ctx.fillStyle = g.color;
@@ -672,7 +708,6 @@ export function DashboardPage({
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1.5;
       ctx.stroke();
-
       ctx.font = "bold 10px sans-serif";
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
@@ -690,49 +725,37 @@ export function DashboardPage({
       if (points.length < 6) setThumbnailBlob(null);
       return;
     }
-
     const timer = setTimeout(() => {
       const overlayCanvas = overlayCanvasRef.current;
       if (!overlayCanvas || !capturedDataUrl) return;
-
       const offscreen = document.createElement("canvas");
       offscreen.width = overlayCanvas.width;
       offscreen.height = overlayCanvas.height;
-
       const ctx = offscreen.getContext("2d");
       if (!ctx) return;
-
       const bgImg = new Image();
       bgImg.onload = () => {
         ctx.drawImage(bgImg, 0, 0, offscreen.width, offscreen.height);
         ctx.drawImage(overlayCanvas, 0, 0);
         offscreen.toBlob(
-          (blob) => {
-            if (blob) setThumbnailBlob(blob);
-          },
+          (blob) => { if (blob) setThumbnailBlob(blob); },
           "image/jpeg",
           0.9,
         );
       };
       bgImg.src = capturedDataUrl;
     }, 100);
-
     return () => clearTimeout(timer);
   }, [points, modalStep, capturedDataUrl]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (points.length >= 6) return;
-
     const canvas = overlayCanvasRef.current;
     const img = cornerImgRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
-    const scaleX =
-      (videoSize.w || img?.naturalWidth || rect.width) / rect.width;
-    const scaleY =
-      (videoSize.h || img?.naturalHeight || rect.height) / rect.height;
-
+    const scaleX = (videoSize.w || img?.naturalWidth || rect.width) / rect.width;
+    const scaleY = (videoSize.h || img?.naturalHeight || rect.height) / rect.height;
     setPoints((prev) => [
       ...prev,
       {
@@ -744,11 +767,9 @@ export function DashboardPage({
 
   const handleFileSelect = (file: File) => {
     if (!file.type.startsWith("video/")) return;
-
     setUploadFile(file);
     if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
     videoUrlRef.current = URL.createObjectURL(file);
-
     setPoints([]);
     setFrameIndex(0);
     setCapturedDataUrl(null);
@@ -778,7 +799,6 @@ export function DashboardPage({
         }
       }
     }
-
     setPoints([]);
     setThumbnailBlob(null);
     setModalStep("corners");
@@ -795,7 +815,6 @@ export function DashboardPage({
     setThumbnailBlob(null);
     setVideoDuration(0);
     setSubmitResult(null);
-
     if (videoUrlRef.current) {
       URL.revokeObjectURL(videoUrlRef.current);
       videoUrlRef.current = null;
@@ -804,14 +823,10 @@ export function DashboardPage({
 
   const handleSubmit = async () => {
     if (points.length < 6 || !uploadFile) return;
-
     if (!thumbnailBlob || !capturedDataUrl) {
-      alert(
-        "썸네일 생성이 아직 완료되지 않았습니다. 잠시 후 다시 시도해주세요.",
-      );
+      alert("썸네일 생성이 아직 완료되지 않았습니다. 잠시 후 다시 시도해주세요.");
       return;
     }
-
     setIsSubmitting(true);
     setSubmitResult(null);
 
@@ -821,7 +836,6 @@ export function DashboardPage({
     const currentThumbnailBlob = thumbnailBlob;
     const currentThumbnailDataUrl = capturedDataUrl;
     const currentVideoDuration = videoDuration;
-
     const tempId = `temp-${Date.now()}`;
 
     const tempVideo: VideoRecord = {
@@ -839,7 +853,6 @@ export function DashboardPage({
 
     try {
       const token = localStorage.getItem("accessToken");
-
       const formData = new FormData();
       formData.append("videoFile", currentUploadFile);
       formData.append("title", currentVideoName);
@@ -854,7 +867,6 @@ export function DashboardPage({
       });
 
       const json: UploadApiResponse | null = await res.json().catch(() => null);
-
       if (!res.ok) {
         const message = json?.message || `업로드 실패 (${res.status})`;
         throw new Error(message);
@@ -865,9 +877,7 @@ export function DashboardPage({
       const newTitle = uploaded?.title || currentVideoName;
       const uploadDate = toDateString(uploaded?.uploadDate);
 
-      if (!newVideoId) {
-        throw new Error("업로드 응답에 videoId가 없습니다.");
-      }
+      if (!newVideoId) throw new Error("업로드 응답에 videoId가 없습니다.");
 
       const newThumbnailUrl =
         uploaded?.thumbnailUrl || `/api/v1/videos/${newVideoId}/thumbnail`;
@@ -892,31 +902,19 @@ export function DashboardPage({
       );
 
       tryPromoteServerThumbnail(newVideoId, newThumbnailUrl);
-
       setStats((prev) =>
         prev ? { ...prev, totalVideos: prev.totalVideos + 1 } : prev,
       );
-
       setSubmitResult("success");
     } catch (err) {
       console.error("Upload Error:", err);
-
       setVideos((prev) =>
         prev.map((v) =>
-          v.id === tempId
-            ? {
-                ...v,
-                duration: "업로드 실패",
-                status: "error",
-              }
-            : v,
+          v.id === tempId ? { ...v, duration: "업로드 실패", status: "error" } : v,
         ),
       );
-
       setSubmitResult("error");
-      alert(
-        err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.",
-      );
+      alert(err instanceof Error ? err.message : "업로드 중 오류가 발생했습니다.");
     } finally {
       setIsSubmitting(false);
     }
@@ -929,6 +927,16 @@ export function DashboardPage({
 
   const currentTip = BADMINTON_TIPS[tipIndex];
   const currentGuide = points.length < 6 ? POINT_GUIDES[points.length] : null;
+
+  // ── 퍼포먼스 트렌드 렌더 헬퍼 ─────────────────────────────────
+  const trendIsLoading = trendData === undefined;
+  const trendIsFailed = trendData === null;
+
+  const trendRows = [
+    { label: "스매시", key: "smash" as const, color: "#ef4444" },
+    { label: "수비력", key: "defense" as const, color: "#3b82f6" },
+    { label: "정확도", key: "accuracy" as const, color: "#10b981" },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -951,12 +959,8 @@ export function DashboardPage({
               업로드한 경기 영상과 AI 분석 리포트를 관리하세요
             </p>
           </div>
-
           <button
-            onClick={() => {
-              setShowUploadModal(true);
-              setModalStep("upload");
-            }}
+            onClick={() => { setShowUploadModal(true); setModalStep("upload"); }}
             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-sm text-sm font-semibold"
           >
             <Upload className="size-4" />
@@ -964,13 +968,11 @@ export function DashboardPage({
           </button>
         </div>
 
+        {/* ── 통계 카드 ── */}
         {isLoading ? (
           <div className="grid grid-cols-2 gap-4 mb-8">
             {[0, 1].map((i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-4"
-              >
+              <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-slate-100 animate-pulse shrink-0" />
                 <div className="flex-1 space-y-2">
                   <div className="h-2.5 bg-slate-100 rounded-full animate-pulse w-24" />
@@ -986,101 +988,87 @@ export function DashboardPage({
                 <Film className="size-5 text-blue-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-400 mb-1">
-                  총 업로드 영상
-                </p>
+                <p className="text-xs font-medium text-slate-400 mb-1">총 업로드 영상</p>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-slate-900 tabular-nums">
-                    {stats.totalVideos}
-                  </span>
+                  <span className="text-2xl font-bold text-slate-900 tabular-nums">{stats.totalVideos}</span>
                   <span className="text-sm text-slate-400 ml-0.5">개</span>
                 </div>
               </div>
             </div>
-
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
               <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
                 <Clock className="size-5 text-violet-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-400 mb-1">
-                  총 영상 시간
-                </p>
-                <span className="text-2xl font-bold text-slate-900 tabular-nums">
-                  {stats.totalAnalysisTime}
-                </span>
+                <p className="text-xs font-medium text-slate-400 mb-1">총 영상 시간</p>
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">{stats.totalAnalysisTime}</span>
               </div>
             </div>
           </div>
         ) : null}
 
-        <ActivityChartCard />
+        {/* ── 활동 통계 차트 (스켈레톤 포함) ── */}
+        <ActivityChartCard activityData={activityData} />
 
+        {/* ── 퍼포먼스 트렌드 + 배드민턴 팁 ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-5">
               <TrendingUp className="size-4 text-emerald-500" />
-              <h2 className="text-sm font-semibold text-slate-800">
-                퍼포먼스 트렌드
-              </h2>
-              <span className="ml-auto text-[10px] text-slate-400">
-                최근 7주 · 분석 데이터 기반
-              </span>
+              <h2 className="text-sm font-semibold text-slate-800">퍼포먼스 트렌드</h2>
+              <span className="ml-auto text-[10px] text-slate-400">최근 7주 · 분석 데이터 기반</span>
             </div>
 
             <div className="space-y-4">
-              {[
-                {
-                  label: "스매시",
-                  data: MOCK_TREND.smash,
-                  color: "#ef4444",
-                  current: MOCK_TREND.smash[6],
-                },
-                {
-                  label: "수비력",
-                  data: MOCK_TREND.defense,
-                  color: "#3b82f6",
-                  current: MOCK_TREND.defense[6],
-                },
-                {
-                  label: "정확도",
-                  data: MOCK_TREND.accuracy,
-                  color: "#10b981",
-                  current: MOCK_TREND.accuracy[6],
-                },
-              ].map(({ label, data, color, current }) => {
-                const prev = data[data.length - 2];
-                const diff = current - prev;
-
-                return (
-                  <div key={label} className="flex items-center gap-4">
-                    <span className="w-14 text-xs font-semibold text-gray-500 shrink-0">
-                      {label}
-                    </span>
+              {trendIsLoading ? (
+                /* 로딩 스켈레톤 */
+                [0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className="w-14 h-3 bg-slate-100 rounded-full animate-pulse shrink-0" />
                     <div className="flex-1">
-                      <TrendSparkline data={data} color={color} />
+                      <SparklineSkeleton />
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span
-                        className="text-sm font-black tabular-nums"
-                        style={{ color }}
-                      >
-                        {current}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                          diff >= 0
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-red-50 text-red-500"
-                        }`}
-                      >
-                        {diff >= 0 ? "+" : ""}
-                        {diff}
-                      </span>
+                      <div className="w-8 h-5 bg-slate-100 rounded-full animate-pulse" />
+                      <div className="w-8 h-4 bg-slate-100 rounded-full animate-pulse" />
                     </div>
                   </div>
-                );
-              })}
+                ))
+              ) : trendIsFailed ? (
+                /* API 없음 → 빈 상태 */
+                <div className="flex flex-col items-center justify-center py-8 gap-2">
+                  <TrendingUp className="size-6 text-slate-300" />
+                  <p className="text-xs text-slate-400 font-medium">데이터를 불러올 수 없습니다</p>
+                </div>
+              ) : (
+                /* 실제 트렌드 데이터 */
+                trendRows.map(({ label, key, color }) => {
+                  const data = trendData![key];
+                  const current = data[data.length - 1];
+                  const prev = data[data.length - 2];
+                  const diff = current - prev;
+                  return (
+                    <div key={label} className="flex items-center gap-4">
+                      <span className="w-14 text-xs font-semibold text-gray-500 shrink-0">{label}</span>
+                      <div className="flex-1">
+                        <TrendSparkline data={data} color={color} />
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-sm font-black tabular-nums" style={{ color }}>
+                          {current}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            diff >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
+                          }`}
+                        >
+                          {diff >= 0 ? "+" : ""}{diff}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             <p className="mt-4 text-[10px] text-slate-300">
@@ -1088,6 +1076,7 @@ export function DashboardPage({
             </p>
           </div>
 
+          {/* 배드민턴 팁 */}
           <div className="flex flex-col gap-4">
             <div className="bg-gradient-to-br from-[#1a2b4c] to-[#2a4070] rounded-2xl p-5 text-white flex-1 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/5 -translate-y-8 translate-x-8" />
@@ -1098,13 +1087,9 @@ export function DashboardPage({
                     오늘의 배드민턴 팁
                   </span>
                 </div>
-
                 <div className="text-3xl mb-2">{currentTip.icon}</div>
                 <p className="text-sm font-bold mb-1">{currentTip.title}</p>
-                <p className="text-xs text-white/70 leading-relaxed min-h-[48px]">
-                  {currentTip.desc}
-                </p>
-
+                <p className="text-xs text-white/70 leading-relaxed min-h-[48px]">{currentTip.desc}</p>
                 <div className="flex items-center justify-between mt-4">
                   <button
                     type="button"
@@ -1114,7 +1099,6 @@ export function DashboardPage({
                   >
                     <ChevronLeft className="size-4 text-white" />
                   </button>
-
                   <div className="flex gap-1">
                     {BADMINTON_TIPS.map((_, i) => (
                       <button
@@ -1122,15 +1106,12 @@ export function DashboardPage({
                         type="button"
                         onClick={() => setTipIndex(i)}
                         className={`h-1.5 rounded-full transition-all ${
-                          i === tipIndex
-                            ? "w-5 bg-[#8ce600]"
-                            : "w-2 bg-white/30 hover:bg-white/50"
+                          i === tipIndex ? "w-5 bg-[#8ce600]" : "w-2 bg-white/30 hover:bg-white/50"
                         }`}
                         aria-label={`${i + 1}번째 팁`}
                       />
                     ))}
                   </div>
-
                   <button
                     type="button"
                     onClick={handleNextTip}
@@ -1145,12 +1126,11 @@ export function DashboardPage({
           </div>
         </div>
 
+        {/* ── 최근 영상 목록 ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
-              <span className="text-sm font-semibold text-slate-800">
-                최근 영상
-              </span>
+              <span className="text-sm font-semibold text-slate-800">최근 영상</span>
               {!isLoading && videos.length > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-semibold tabular-nums">
                   {videos.length}
@@ -1163,10 +1143,7 @@ export function DashboardPage({
             <div className="divide-y divide-slate-100">
               {[0, 1, 2, 3].map((i) => (
                 <div key={i} className="px-6 py-4 flex items-center gap-5">
-                  <div
-                    className="w-28 rounded-xl bg-slate-100 animate-pulse shrink-0"
-                    style={{ height: "72px" }}
-                  />
+                  <div className="w-28 rounded-xl bg-slate-100 animate-pulse shrink-0" style={{ height: "72px" }} />
                   <div className="flex-1 space-y-2">
                     <div className="h-3.5 bg-slate-100 rounded-full animate-pulse w-44" />
                     <div className="h-2.5 bg-slate-100 rounded-full animate-pulse w-28" />
@@ -1183,17 +1160,10 @@ export function DashboardPage({
               <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
                 <Upload className="size-6 text-slate-400" />
               </div>
-              <p className="text-sm font-semibold text-slate-600 mb-1">
-                업로드된 영상이 없습니다
-              </p>
-              <p className="text-xs text-slate-400">
-                첫 번째 경기 영상을 업로드해보세요
-              </p>
+              <p className="text-sm font-semibold text-slate-600 mb-1">업로드된 영상이 없습니다</p>
+              <p className="text-xs text-slate-400">첫 번째 경기 영상을 업로드해보세요</p>
               <button
-                onClick={() => {
-                  setShowUploadModal(true);
-                  setModalStep("upload");
-                }}
+                onClick={() => { setShowUploadModal(true); setModalStep("upload"); }}
                 className="mt-5 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
               >
                 영상 업로드
@@ -1217,6 +1187,7 @@ export function DashboardPage({
 
       <Footer />
 
+      {/* ── 업로드 모달 ── */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           {modalStep === "upload" && (
@@ -1224,26 +1195,16 @@ export function DashboardPage({
               <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                 <div>
                   <StepIndicator step="upload" />
-                  <h2 className="text-base font-bold text-gray-900 mt-1">
-                    영상 업로드
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    경기 영상을 업로드하여 AI 분석을 받으세요
-                  </p>
+                  <h2 className="text-base font-bold text-gray-900 mt-1">영상 업로드</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">경기 영상을 업로드하여 AI 분석을 받으세요</p>
                 </div>
-                <button
-                  onClick={closeModal}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"
-                >
+                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
                   <X className="size-4" />
                 </button>
               </div>
-
               <div className="px-6 py-5">
                 <div className="mb-5">
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
-                    영상 이름
-                  </label>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">영상 이름</label>
                   <input
                     type="text"
                     value={videoName}
@@ -1252,57 +1213,28 @@ export function DashboardPage({
                     placeholder="예: 주말 복식 경기"
                   />
                 </div>
-
                 <div className="mb-6">
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
-                    영상 파일
-                  </label>
-
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">영상 파일</label>
                   <div
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsDragging(true);
-                    }}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
                     className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all ${
-                      isDragging
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 bg-gray-50"
+                      isDragging ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-gray-50"
                     }`}
                   >
                     <Upload className="size-8 text-gray-400 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-gray-600 mb-1">
-                      드래그 앤 드롭 또는 클릭하여 업로드
-                    </p>
-                    <p className="text-xs text-gray-400 mb-4">
-                      MP4, MOV 등 영상 파일
-                    </p>
-
+                    <p className="text-sm font-medium text-gray-600 mb-1">드래그 앤 드롭 또는 클릭하여 업로드</p>
+                    <p className="text-xs text-gray-400 mb-4">MP4, MOV 등 영상 파일</p>
                     <label className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 cursor-pointer transition-colors">
                       <Plus className="size-4" />
                       파일 선택
-                      <input
-                        type="file"
-                        accept="video/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileSelect(file);
-                        }}
-                      />
+                      <input type="file" accept="video/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file); }} />
                     </label>
                   </div>
                 </div>
-
                 <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  >
-                    취소
-                  </button>
+                  <button type="button" onClick={closeModal} className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">취소</button>
                 </div>
               </div>
             </div>
@@ -1313,75 +1245,31 @@ export function DashboardPage({
               <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                 <div>
                   <StepIndicator step="frame" />
-                  <h2 className="text-base font-bold text-gray-900 mt-1">
-                    프레임 선택
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    코트가 가장 잘 보이는 프레임을 선택하세요
-                  </p>
+                  <h2 className="text-base font-bold text-gray-900 mt-1">프레임 선택</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">코트가 가장 잘 보이는 프레임을 선택하세요</p>
                 </div>
-                <button
-                  onClick={closeModal}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"
-                >
-                  <X className="size-4" />
-                </button>
+                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"><X className="size-4" /></button>
               </div>
-
               <div className="p-6">
-                <video
-                  ref={videoRef}
-                  src={videoUrlRef.current ?? undefined}
-                  className="hidden"
-                  controls={false}
-                />
+                <video ref={videoRef} src={videoUrlRef.current ?? undefined} className="hidden" controls={false} />
                 <canvas ref={frameCanvasRef} className="hidden" />
-
                 <div className="rounded-2xl overflow-hidden border border-gray-200 bg-black mb-5">
                   {capturedDataUrl ? (
-                    <img
-                      src={capturedDataUrl}
-                      alt="선택 프레임"
-                      className="w-full max-h-[70vh] object-contain mx-auto"
-                    />
+                    <img src={capturedDataUrl} alt="선택 프레임" className="w-full max-h-[70vh] object-contain mx-auto" />
                   ) : (
-                    <div className="h-[480px] flex items-center justify-center text-white/70">
-                      프레임 불러오는 중...
-                    </div>
+                    <div className="h-[480px] flex items-center justify-center text-white/70">프레임 불러오는 중...</div>
                   )}
                 </div>
-
                 <div className="mb-4">
-                  <input
-                    type="range"
-                    min={0}
-                    max={Math.max(totalFrames - 1, 0)}
-                    value={frameIndex}
-                    onChange={(e) => setFrameIndex(Number(e.target.value))}
-                    className="w-full"
-                  />
+                  <input type="range" min={0} max={Math.max(totalFrames - 1, 0)} value={frameIndex} onChange={(e) => setFrameIndex(Number(e.target.value))} className="w-full" />
                   <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                     <span>프레임: {frameIndex}</span>
                     <span>총 프레임: {totalFrames}</span>
                   </div>
                 </div>
-
                 <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setModalStep("upload")}
-                    className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  >
-                    이전
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleConfirmFrame}
-                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700"
-                  >
-                    이 프레임으로 선택
-                  </button>
+                  <button type="button" onClick={() => setModalStep("upload")} className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
+                  <button type="button" onClick={handleConfirmFrame} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700">이 프레임으로 선택</button>
                 </div>
               </div>
             </div>
@@ -1392,114 +1280,55 @@ export function DashboardPage({
               <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                 <div>
                   <StepIndicator step="corners" />
-                  <h2 className="text-base font-bold text-gray-900 mt-1">
-                    코트 좌표 지정
-                  </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    코트 네 꼭짓점과 네트 양 끝을 순서대로 클릭하세요
-                  </p>
+                  <h2 className="text-base font-bold text-gray-900 mt-1">코트 좌표 지정</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">코트 네 꼭짓점과 네트 양 끝을 순서대로 클릭하세요</p>
                 </div>
-                <button
-                  onClick={closeModal}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"
-                >
-                  <X className="size-4" />
-                </button>
+                <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"><X className="size-4" /></button>
               </div>
-
               <div className="p-6">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-gray-700">
-                      현재 선택:{" "}
-                      <span style={{ color: currentGuide?.color }}>
-                        {currentGuide?.label ?? "완료"}
-                      </span>
+                      현재 선택: <span style={{ color: currentGuide?.color }}>{currentGuide?.label ?? "완료"}</span>
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      순서: TL → TR → BR → BL → NL → NR
-                    </p>
+                    <p className="text-xs text-gray-400 mt-1">순서: TL → TR → BR → BL → NL → NR</p>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPoints([])}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
-                    >
-                      <RotateCcw className="size-4" />
-                      초기화
-                    </button>
-                  </div>
+                  <button type="button" onClick={() => setPoints([])} className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
+                    <RotateCcw className="size-4" />초기화
+                  </button>
                 </div>
-
                 <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-black mb-5">
                   {capturedDataUrl ? (
                     <>
-                      <img
-                        ref={cornerImgRef}
-                        src={capturedDataUrl}
-                        alt="코트 좌표 지정"
-                        className="w-full max-h-[70vh] object-contain mx-auto block"
-                        onLoad={drawOverlay}
-                      />
-                      <canvas
-                        ref={overlayCanvasRef}
-                        className="absolute inset-0 w-full h-full cursor-crosshair"
-                        onClick={handleCanvasClick}
-                      />
+                      <img ref={cornerImgRef} src={capturedDataUrl} alt="코트 좌표 지정" className="w-full max-h-[70vh] object-contain mx-auto block" onLoad={drawOverlay} />
+                      <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full cursor-crosshair" onClick={handleCanvasClick} />
                     </>
                   ) : (
-                    <div className="h-[480px] flex items-center justify-center text-white/70">
-                      이미지 불러오는 중...
-                    </div>
+                    <div className="h-[480px] flex items-center justify-center text-white/70">이미지 불러오는 중...</div>
                   )}
                 </div>
-
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
                   {POINT_GUIDES.map((guide, i) => {
                     const selected = points[i];
                     return (
-                      <div
-                        key={guide.label}
-                        className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"
-                      >
+                      <div key={guide.label} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                         <div className="flex items-center gap-2 mb-1">
-                          <span
-                            className="inline-block w-3 h-3 rounded-full"
-                            style={{ backgroundColor: guide.color }}
-                          />
-                          <p className="text-sm font-semibold text-gray-700">
-                            {guide.label}
-                          </p>
+                          <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: guide.color }} />
+                          <p className="text-sm font-semibold text-gray-700">{guide.label}</p>
                         </div>
-                        <p className="text-xs text-gray-400">
-                          {selected
-                            ? `(${selected.x}, ${selected.y})`
-                            : "아직 선택 안 됨"}
-                        </p>
+                        <p className="text-xs text-gray-400">{selected ? `(${selected.x}, ${selected.y})` : "아직 선택 안 됨"}</p>
                       </div>
                     );
                   })}
                 </div>
-
                 <div className="flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setModalStep("frame")}
-                    className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  >
-                    이전
-                  </button>
-
+                  <button type="button" onClick={() => setModalStep("frame")} className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
                   <button
                     type="button"
                     onClick={handleSubmit}
                     disabled={points.length < 6 || isSubmitting}
                     className={`px-5 py-2.5 rounded-xl text-sm font-semibold ${
-                      points.length < 6 || isSubmitting
-                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
+                      points.length < 6 || isSubmitting ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
                   >
                     {isSubmitting ? "업로드 중..." : "업로드 시작"}

@@ -150,17 +150,25 @@ export function OnboardingPage({
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          <div className="relative aspect-video border border-slate-200 bg-slate-100 overflow-hidden group shadow-sm">
+          <div className="relative aspect-video border border-slate-200 bg-slate-900 overflow-hidden group shadow-sm">
             <div className="absolute top-2 left-2 z-10 bg-white/90 text-[#1a2b4c] font-mono font-bold text-[10px] px-2 py-0.5 border border-slate-200 shadow-sm">
               CAM-02: HEATMAP
             </div>
-            <img
-              src="https://images.unsplash.com/photo-1613918431703-e60802773bba?auto=format&fit=crop&q=80"
-              alt="Feed 2"
-              className="w-full h-full object-cover opacity-60 grayscale group-hover:grayscale-0 transition-all duration-500"
-            />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_50%,rgba(255,0,0,0.5)_0%,transparent_50%)] mix-blend-multiply" />
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* 코트 배경 그리드 */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:24px_24px]" />
+            {/* 히트맵 레이어 — 순수 CSS radial-gradient 조합 */}
+            <div className="absolute inset-0">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_55%_45%_at_62%_52%,rgba(255,30,0,0.72)_0%,rgba(255,80,0,0.45)_30%,transparent_65%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_30%_28%_at_38%_40%,rgba(255,140,0,0.55)_0%,transparent_60%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_20%_18%_at_75%_70%,rgba(255,200,0,0.45)_0%,transparent_60%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_16%_14%_at_30%_65%,rgba(0,180,255,0.35)_0%,transparent_60%)]" />
+            </div>
+            {/* 히트맵 스케일 범례 */}
+            <div className="absolute bottom-3 right-3 flex flex-col items-center gap-1 z-10">
+              <div className="w-3 h-16 rounded-full bg-gradient-to-b from-red-500 via-yellow-400 to-blue-400 opacity-80" />
+              <span className="text-[8px] text-white/60 font-mono">HIGH</span>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20">
               <Maximize className="text-white drop-shadow-md w-10 h-10" />
             </div>
           </div>
@@ -177,16 +185,46 @@ export function OnboardingPage({
             />
           </div>
 
-          <div className="relative aspect-video border border-slate-200 bg-slate-100 overflow-hidden group shadow-sm">
+          <div className="relative aspect-video border border-slate-200 bg-[#0d1f0d] overflow-hidden group shadow-sm">
             <div className="absolute top-2 left-2 z-10 bg-white/90 text-[#1a2b4c] font-mono font-bold text-[10px] px-2 py-0.5 border border-slate-200 shadow-sm">
               CAM-04: SHUTTLE_POS
             </div>
-            <div className="absolute z-20 inset-0 pointer-events-none p-6">
-              <div className="absolute top-1/4 left-1/3 w-2.5 h-2.5 bg-blue-500 rounded-full shadow-[0_0_8px_blue]" />
-              <div className="absolute top-1/2 left-2/3 w-2.5 h-2.5 bg-blue-500 rounded-full shadow-[0_0_8px_blue]" />
-              <div className="absolute bottom-1/3 left-1/2 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_red]" />
-            </div>
-            <div className="absolute bottom-2 right-2 text-white bg-[#1a2b4c] px-2 py-0.5 font-mono text-[10px] font-bold shadow-sm">
+            {/* 배드민턴 코트 SVG */}
+            <svg
+              viewBox="0 0 200 120"
+              className="absolute inset-0 w-full h-full"
+              preserveAspectRatio="xMidYMid meet"
+            >
+              {/* 코트 바닥 */}
+              <rect x="0" y="0" width="200" height="120" fill="#1a3a1a" />
+              {/* 코트 외곽선 */}
+              <rect x="20" y="10" width="160" height="100" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" />
+              {/* 네트 (가운데 가로선) */}
+              <line x1="20" y1="60" x2="180" y2="60" stroke="rgba(255,255,255,0.9)" strokeWidth="1.5" />
+              {/* 서비스 라인 (위쪽) */}
+              <line x1="20" y1="30" x2="180" y2="30" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
+              {/* 서비스 라인 (아래쪽) */}
+              <line x1="20" y1="90" x2="180" y2="90" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
+              {/* 센터 세로선 (위 절반) */}
+              <line x1="100" y1="10" x2="100" y2="60" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
+              {/* 센터 세로선 (아래 절반) */}
+              <line x1="100" y1="60" x2="100" y2="110" stroke="rgba(255,255,255,0.4)" strokeWidth="0.8" />
+              {/* 셔틀콕 위치 점들 */}
+              <circle cx="68" cy="38" r="3.5" fill="#3b82f6" opacity="0.9">
+                <animate attributeName="opacity" values="0.9;0.4;0.9" dur="2.1s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="138" cy="78" r="3.5" fill="#3b82f6" opacity="0.9">
+                <animate attributeName="opacity" values="0.9;0.4;0.9" dur="1.7s" repeatCount="indefinite" />
+              </circle>
+              <circle cx="105" cy="52" r="3" fill="#ef4444" opacity="0.9">
+                <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.4s" repeatCount="indefinite" />
+              </circle>
+              {/* glow 효과 */}
+              <circle cx="68" cy="38" r="7" fill="#3b82f6" opacity="0.15" />
+              <circle cx="138" cy="78" r="7" fill="#3b82f6" opacity="0.15" />
+              <circle cx="105" cy="52" r="6" fill="#ef4444" opacity="0.15" />
+            </svg>
+            <div className="absolute bottom-2 right-2 text-white bg-[#1a2b4c] px-2 py-0.5 font-mono text-[10px] font-bold shadow-sm z-10">
               P_COUNT: 03
             </div>
           </div>
