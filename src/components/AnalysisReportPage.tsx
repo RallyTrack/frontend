@@ -1054,9 +1054,12 @@ export function AnalysisReportPage({
 - 개인 스트로크 합계: ${playerStrokeTotal}회
 - Smash: ${stroke.smash}회, Clear: ${stroke.clear}회, Drop: ${stroke.drop}회, Drive: ${stroke.drive}회, Serve: ${stroke.serve}회, Net: ${stroke.net}회, Others(미분류): ${stroke.others}회
 
-[${playerLabel} 능력치 (0~100)]
-- 스매시: ${ability.smash} / 평균 랠리 시간: ${ability.AvgRallyTime} / 속도: ${ability.speed}
-- 이동 거리: ${ability.distance} / 실책률: ${ability.errorRate}
+[${playerLabel} 능력치 (0~100점, 높을수록 우수)]
+- 스매시 ${ability.smash}점: 전체 타격 중 스매시 비율 (공격성)
+- 평균 랠리 시간 ${ability.AvgRallyTime}점: 참여 랠리의 평균 지속 시간 (지구력·랠리 유지력)
+- 속도 ${ability.speed}점: 타격 빈도 기반 반응 속도
+- 이동 거리 ${ability.distance}점: 경기 중 선수의 코트 커버리지
+- 실책률 ${ability.errorRate}점: 0점=실점 없음, 100점=모든 랠리를 마지막 타격으로 마감 (낮을수록 좋음)
 
 [기존 코치 피드백]
 ${coaching?.feedbackText ?? "(없음)"}
@@ -1121,21 +1124,16 @@ ${coaching?.feedbackText ?? "(없음)"}
       { name: "네트", count: playerData.strokeTypes.net, color: "#06b6d4" },
       { name: "기타", count: playerData.strokeTypes.others, color: "#94a3b8" },
     ];
+    const am = playerData.abilityMetrics;
+    const clamp = (v: unknown) => Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
     const abilityData = [
-      { name: "속도", value: Number(playerData.abilityMetrics.speed) || 0 },
-      {
-        name: "평균 랠리 시간",
-        value: Number(playerData.abilityMetrics.AvgRallyTime) || 0,
-      },
-      { name: "스매시", value: Number(playerData.abilityMetrics.smash) || 0 },
-      {
-        name: "이동 거리",
-        value: Number(playerData.abilityMetrics.distance) || 0,
-      },
-      {
-        name: "실책률",
-        value: Number(playerData.abilityMetrics.errorRate) || 0,
-      },
+      { name: "속도",           value: clamp(am.speed) },
+      { name: "평균 랠리 시간", value: clamp(am.AvgRallyTime) },
+      { name: "스매시",         value: clamp(am.smash) },
+      { name: "이동 거리",      value: clamp(am.distance) },
+      // 실책률은 높을수록 나쁨 → 레이더 차트에서 반전하여 "안정성"으로 표시
+      // 원본 errorRate는 AI 브리핑 프롬프트에서 ability.errorRate로 직접 참조
+      { name: "안정성",         value: 100 - clamp(am.errorRate) },
     ];
     const accentColor = activePlayer === "bottom" ? "#3b82f6" : "#6366f1";
     return { summary, heatmapZones, strokeData, abilityData, accentColor };

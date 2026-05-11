@@ -28,8 +28,12 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
         matchTime: data.summary?.matchTime ?? "분석 완료",
       },
       players: {
-        top: data.players?.top ?? buildEmptyPlayerData(),
-        bottom: data.players?.bottom ?? buildEmptyPlayerData(),
+        top: data.players?.top
+          ? { ...data.players.top, abilityMetrics: parseAbilityMetrics(data.players.top.abilityMetrics) }
+          : buildEmptyPlayerData(),
+        bottom: data.players?.bottom
+          ? { ...data.players.bottom, abilityMetrics: parseAbilityMetrics(data.players.bottom.abilityMetrics) }
+          : buildEmptyPlayerData(),
       },
     },
   };
@@ -41,5 +45,24 @@ function buildEmptyPlayerData() {
     strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, others: 0 },
     abilityMetrics: { smash: 0, AvgRallyTime: 0, speed: 0, distance: 0, errorRate: 0 },
     aiCoaching: { feedbackText: "" },
+  };
+}
+
+// ── abilityMetrics 안전 파싱 ──────────────────────────────────────────────
+// 백엔드가 null/undefined를 내려보내거나 숫자가 아닌 값이 섞여도 0~100 정수로 보정
+function clampScore(v: unknown): number {
+  const n = Number(v);
+  if (!isFinite(n)) return 0;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+function parseAbilityMetrics(raw: Record<string, unknown> | undefined) {
+  if (!raw) return { smash: 0, AvgRallyTime: 0, speed: 0, distance: 0, errorRate: 0 };
+  return {
+    smash:        clampScore(raw.smash),
+    AvgRallyTime: clampScore(raw.AvgRallyTime),  // 백엔드 @JsonProperty("AvgRallyTime")와 동일 키
+    speed:        clampScore(raw.speed),
+    distance:     clampScore(raw.distance),
+    errorRate:    clampScore(raw.errorRate),
   };
 }
