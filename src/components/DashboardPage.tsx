@@ -1008,10 +1008,11 @@ export function DashboardPage({
         ) : null}
 
         {/* ── 활동 통계 차트 (스켈레톤 포함) ── */}
-        <ActivityChartCard activityData={activityData} />
+        {/* <ActivityChartCard activityData={activityData} /> */}
 
         {/* ── 퍼포먼스 트렌드 + 배드민턴 팁 ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+          {/* ── 퍼포먼스 트렌드 (주석 처리됨) ──
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-5">
               <TrendingUp className="size-4 text-emerald-500" />
@@ -1021,7 +1022,6 @@ export function DashboardPage({
 
             <div className="space-y-4">
               {trendIsLoading ? (
-                /* 로딩 스켈레톤 */
                 [0, 1, 2].map((i) => (
                   <div key={i} className="flex items-center gap-4">
                     <div className="w-14 h-3 bg-slate-100 rounded-full animate-pulse shrink-0" />
@@ -1035,13 +1035,11 @@ export function DashboardPage({
                   </div>
                 ))
               ) : trendIsFailed ? (
-                /* API 없음 → 빈 상태 */
                 <div className="flex flex-col items-center justify-center py-8 gap-2">
                   <TrendingUp className="size-6 text-slate-300" />
                   <p className="text-xs text-slate-400 font-medium">데이터를 불러올 수 없습니다</p>
                 </div>
               ) : (
-                /* 실제 트렌드 데이터 */
                 trendRows.map(({ label, key, color }) => {
                   const data = trendData![key];
                   const current = data[data.length - 1];
@@ -1075,9 +1073,10 @@ export function DashboardPage({
               * 트렌드는 분석된 경기 리포트 데이터를 기반으로 자동 계산됩니다.
             </p>
           </div>
+          ── 퍼포먼스 트렌드 끝 ── */}
 
           {/* 배드민턴 팁 */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 lg:col-span-3">
             <div className="bg-gradient-to-br from-[#1a2b4c] to-[#2a4070] rounded-2xl p-5 text-white flex-1 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/5 -translate-y-8 translate-x-8" />
               <div className="relative z-10">
