@@ -453,39 +453,49 @@ function BadmintonHeatmapCourt({
         </linearGradient>
 
         {/* ── 히트맵 블러 필터 (물웅덩이 효과) ── */}
+        {/* stdDeviation 높을수록 더 넓게 퍼짐. feComponentTransfer 제거 → 엣지 샤프닝 없애 자연스러운 번짐 유지 */}
         <filter
           id={`heatblur-${uid}`}
-          x="-80%"
-          y="-80%"
-          width="260%"
-          height="260%"
+          x="-100%"
+          y="-100%"
+          width="330%"
+          height="330%"
         >
-          <feGaussianBlur stdDeviation="28" result="blur" />
-          {/* 블러된 알파를 대비 강화해 경계를 부드럽게 */}
-          <feComponentTransfer in="blur" result="sharp">
-            <feFuncA type="gamma" amplitude="1.4" exponent="0.7" offset="0" />
-          </feComponentTransfer>
+          <feGaussianBlur stdDeviation="65" result="blur" />
+          </filter>
+          {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
+          <filter
+          id={`heatblur-halo-${uid}`}
+          x="-120%"
+          y="-120%"
+          width="400%"
+          height="400%"
+        >
+          <feGaussianBlur stdDeviation="65" result="blur" />
         </filter>
 
         {/* 히트맵 색상 매핑: 저빈도(파랑) → 중빈도(청록) → 고빈도(빨강) */}
         {zones.map((_, i) => {
           const t = zones[i].intensity; // 0~1
-          // 저 → 중 → 고: 파랑(0,0,255) → 청록(0,200,100) → 노랑(255,220,0) → 빨강(255,0,0)
+          // 색상 팔레트: 초록 코트와 대비되도록 설계
+          // 저빈도(0~0.33): 하늘파랑(55,180,255) — 초록과 확실히 구분
+          // 중빈도(0.33~0.66): 노랑(255,230,0) — 밝고 눈에 잘 띔
+          // 고빈도(0.66~1.0): 주황→빨강(255,80,0) — 핫스팟 강조
           let r: number, g: number, b: number;
           if (t < 0.33) {
             const s = t / 0.33;
-            r = Math.round(0 + s * 0);
-            g = Math.round(80 + s * 120);
-            b = Math.round(220 - s * 60);
+            r = Math.round(55 + s * 20);
+            g = Math.round(180 + s * 30);
+            b = Math.round(255 - s * 60);
           } else if (t < 0.66) {
             const s = (t - 0.33) / 0.33;
-            r = Math.round(0 + s * 255);
-            g = Math.round(200 - s * 0);
-            b = Math.round(160 - s * 160);
+             r = Math.round(75 + s * 180);  // 75→255
+            g = Math.round(150 + s * 80);  // 150→230
+            b = Math.round(200 - s * 200); // 200→0
           } else {
             const s = (t - 0.66) / 0.34;
             r = 255;
-            g = Math.round(200 - s * 200);
+            g = Math.round(230 - s * 150); // 230→80
             b = 0;
           }
           return (
@@ -496,26 +506,55 @@ function BadmintonHeatmapCourt({
               cy="50%"
               r="50%"
             >
+                           {/* 중심부: 낮은 불투명도 — 가우시안 블러가 번짐을 담당하므로 색상만 부드럽게 */}
               <stop
                 offset="0%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={0.88 * t + 0.35}
+                stopOpacity={Math.min(0.82 * t + 0.38, 0.92)}
               />
               <stop
-                offset="40%"
+                offset="30%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={0.55 * t + 0.15}
+                stopOpacity={Math.min(0.55 * t + 0.18, 0.65)}
               />
               <stop
-                offset="75%"
+                offset="60%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={0.22 * t}
+                stopOpacity={0.22 * t + 0.04}
               />
               <stop
                 offset="100%"
                 stopColor={`rgb(${r},${g},${b})`}
                 stopOpacity="0"
               />
+            </radialGradient>
+          );
+        })}
+        {/* 외곽 헤일로 전용 radialGradient: 아주 연하게 */}
+                {zones.map((_, i) => {
+          const t = zones[i].intensity;
+          let r2: number, g2: number, b2: number;
+          if (t < 0.33) {
+            const s = t / 0.33;
+            r2 = Math.round(55 + s * 20); g2 = Math.round(180 - s * 30); b2 = Math.round(255 - s * 55);
+          } else if (t < 0.66) {
+            const s = (t - 0.33) / 0.33;
+            r2 = Math.round(75 + s * 180); g2 = Math.round(150 + s * 80); b2 = Math.round(200 - s * 200);
+          } else {
+            const s = (t - 0.66) / 0.34;
+            r2 = 255; g2 = Math.round(230 - s * 150); b2 = 0;
+          }
+          return (
+            <radialGradient
+              key={`halo-grad-${i}`}
+              id={`hg-halo-${uid}-${i}`}
+              cx="50%"
+              cy="50%"
+              r="50%"
+            >
+              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.30 * t + 0.08, 0.38)} />
+              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={0.12 * t} />
+              <stop offset="100%" stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity="0" />
             </radialGradient>
           );
         })}
@@ -564,14 +603,31 @@ function BadmintonHeatmapCourt({
         />
       )}
 
-      {/* ── 히트맵 레이어 (코트 클립 안에 렌더링) ── */}
+            {/* ── 히트맵 레이어: 헤일로(외곽 구름) + 코어(중심 색상) 이중 레이어 ── */}
       <g clipPath={`url(#court-clip-${uid})`}>
+        {/* 1차: 넓은 헤일로 레이어 — 멀리 퍼지는 구름 효과 */}
         {zonePixels.map((zp, index) => {
-          // 강도에 따라 반지름 결정 — 충분히 크게 해서 번짐 효과 극대화
-          const baseR = 90 + zp.intensity * 80;
+          const haloR = 130 + zp.intensity * 70;
           return (
             <ellipse
-              key={index}
+              key={`halo-${index}`}
+              cx={zp.px}
+              cy={zp.py}
+              rx={haloR * 1.2}
+              ry={haloR}
+              fill={`url(#hg-halo-${uid}-${index})`}
+              filter={`url(#heatblur-halo-${uid})`}
+              style={{ pointerEvents: "none" }}
+            />
+          );
+        })}
+        {/* 2차: 코어 레이어 — 중심부 색상 블롭, 클릭 가능 */}
+        {zonePixels.map((zp, index) => {
+          // 강도에 비례하되 충분히 크게 — 가우시안 블러가 대부분의 번짐을 담당
+          const baseR = 90 + zp.intensity * 45;
+          return (
+            <ellipse
+              key={`core-${index}`}
               cx={zp.px}
               cy={zp.py}
               rx={baseR * 1.15}
@@ -587,6 +643,7 @@ function BadmintonHeatmapCourt({
           );
         })}
       </g>
+
 
       {/* ── 선택 포인트 마커 ── */}
       {selectedHeatmapPoint !== null && zonePixels[selectedHeatmapPoint] && (
@@ -739,9 +796,9 @@ function BadmintonHeatmapCourt({
       </div>
       <div className="mt-3 flex gap-3 flex-wrap">
         {[
-          { label: "고빈도", color: "rgba(255,60,0,0.85)" },
-          { label: "중빈도", color: "rgba(255,200,0,0.75)" },
-          { label: "저빈도", color: "rgba(0,160,200,0.65)" },
+          { label: "고빈도", color: "rgba(255,80,0,0.85)" },
+          { label: "중빈도", color: "rgba(255,230,0,0.90)" },
+          { label: "저빈도", color: "rgba(55,190,255,0.90)" },
         ].map(({ label, color }) => (
           <div key={label} className="flex items-center gap-1.5">
             <div
