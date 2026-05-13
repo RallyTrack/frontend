@@ -461,7 +461,7 @@ function BadmintonHeatmapCourt({
           width="330%"
           height="330%"
         >
-          <feGaussianBlur stdDeviation="42" result="blur" />
+          <feGaussianBlur stdDeviation="26" result="blur" />
           </filter>
           {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
           <filter
@@ -471,32 +471,32 @@ function BadmintonHeatmapCourt({
           width="400%"
           height="400%"
         >
-          <feGaussianBlur stdDeviation="65" result="blur" />
+          <feGaussianBlur stdDeviation="50" result="blur" />
         </filter>
 
-        {/* 히트맵 색상 매핑: 저빈도(파랑) → 중빈도(청록) → 고빈도(빨강) */}
+        {/* 히트맵 색상 매핑: 저빈도(전기 파랑) → 중빈도(진한 앰버) → 고빈도(크림슨 레드) */}
         {zones.map((_, i) => {
           const t = zones[i].intensity; // 0~1
-          // 색상 팔레트: 초록 코트와 대비되도록 설계
-          // 저빈도(0~0.33): 하늘파랑(55,180,255) — 초록과 확실히 구분
-          // 중빈도(0.33~0.66): 노랑(255,230,0) — 밝고 눈에 잘 띔
-          // 고빈도(0.66~1.0): 주황→빨강(255,80,0) — 핫스팟 강조
+          // 색상 팔레트: 초록 코트와 최대 대비 + 채도 극대화
+          // 저빈도(0~0.33): 전기 파랑(20,90,255) — 초록과 강한 보색 대비
+          // 중빈도(0.33~0.66): 진한 앰버(255,150,0) — 채도 높은 주황
+          // 고빈도(0.66~1.0): 크림슨(210,0,30) — 깊고 진한 빨강
           let r: number, g: number, b: number;
           if (t < 0.33) {
             const s = t / 0.33;
-            r = Math.round(55 + s * 20);
-            g = Math.round(180 + s * 30);
-            b = Math.round(255 - s * 60);
+            r = Math.round(20 + s * 40);    // 20→60
+            g = Math.round(90 + s * 60);    // 90→150
+            b = Math.round(255 - s * 30);   // 255→225
           } else if (t < 0.66) {
             const s = (t - 0.33) / 0.33;
-             r = Math.round(75 + s * 180);  // 75→255
-            g = Math.round(150 + s * 80);  // 150→230
-            b = Math.round(200 - s * 200); // 200→0
+            r = Math.round(60 + s * 195);   // 60→255
+            g = Math.round(150 - s * 0);    // 150→150
+            b = Math.round(225 - s * 225);  // 225→0
           } else {
             const s = (t - 0.66) / 0.34;
-            r = 255;
-            g = Math.round(230 - s * 150); // 230→80
-            b = 0;
+            r = Math.round(255 - s * 45);   // 255→210
+            g = Math.round(150 - s * 150);  // 150→0
+            b = Math.round(0 + s * 30);     // 0→30
           }
           return (
             <radialGradient
@@ -506,21 +506,21 @@ function BadmintonHeatmapCourt({
               cy="50%"
               r="50%"
             >
-                           {/* 중심부: 블러가 번짐을 담당하므로 원본 opacity를 높게 유지 */}
+              {/* opacity 최대치로 올려 블러 후에도 색이 충분히 남도록 */}
               <stop
                 offset="0%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.92 * t + 0.68, 0.99)}
+                stopOpacity={0.99}
               />
               <stop
-                offset="30%"
+                offset="35%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.75 * t + 0.40, 0.88)}
+                stopOpacity={Math.min(0.85 * t + 0.55, 0.96)}
               />
               <stop
-                offset="60%"
+                offset="65%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.50 * t + 0.18, 0.62)}
+                stopOpacity={Math.min(0.60 * t + 0.28, 0.78)}
               />
               <stop
                 offset="100%"
@@ -530,19 +530,19 @@ function BadmintonHeatmapCourt({
             </radialGradient>
           );
         })}
-        {/* 외곽 헤일로 전용 radialGradient: 아주 연하게 */}
+        {/* 외곽 헤일로 전용 radialGradient */}
                 {zones.map((_, i) => {
           const t = zones[i].intensity;
           let r2: number, g2: number, b2: number;
           if (t < 0.33) {
             const s = t / 0.33;
-            r2 = Math.round(55 + s * 20); g2 = Math.round(180 - s * 30); b2 = Math.round(255 - s * 55);
+            r2 = Math.round(20 + s * 40); g2 = Math.round(90 + s * 60); b2 = Math.round(255 - s * 30);
           } else if (t < 0.66) {
             const s = (t - 0.33) / 0.33;
-            r2 = Math.round(75 + s * 180); g2 = Math.round(150 + s * 80); b2 = Math.round(200 - s * 200);
+            r2 = Math.round(60 + s * 195); g2 = 150; b2 = Math.round(225 - s * 225);
           } else {
             const s = (t - 0.66) / 0.34;
-            r2 = 255; g2 = Math.round(230 - s * 150); b2 = 0;
+            r2 = Math.round(255 - s * 45); g2 = Math.round(150 - s * 150); b2 = Math.round(s * 30);
           }
           return (
             <radialGradient
@@ -552,8 +552,8 @@ function BadmintonHeatmapCourt({
               cy="50%"
               r="50%"
             >
-              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.52 * t + 0.22, 0.62)} />
-              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.28 * t + 0.06, 0.34)} />
+              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.65 * t + 0.30, 0.75)} />
+              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.38 * t + 0.12, 0.46)} />
               <stop offset="100%" stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity="0" />
             </radialGradient>
           );
