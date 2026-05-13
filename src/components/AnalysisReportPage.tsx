@@ -461,7 +461,7 @@ function BadmintonHeatmapCourt({
           width="330%"
           height="330%"
         >
-          <feGaussianBlur stdDeviation="65" result="blur" />
+          <feGaussianBlur stdDeviation="42" result="blur" />
           </filter>
           {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
           <filter
@@ -506,21 +506,21 @@ function BadmintonHeatmapCourt({
               cy="50%"
               r="50%"
             >
-                           {/* 중심부: 낮은 불투명도 — 가우시안 블러가 번짐을 담당하므로 색상만 부드럽게 */}
+                           {/* 중심부: 블러가 번짐을 담당하므로 원본 opacity를 높게 유지 */}
               <stop
                 offset="0%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.82 * t + 0.38, 0.92)}
+                stopOpacity={Math.min(0.92 * t + 0.68, 0.99)}
               />
               <stop
                 offset="30%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.55 * t + 0.18, 0.65)}
+                stopOpacity={Math.min(0.75 * t + 0.40, 0.88)}
               />
               <stop
                 offset="60%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={0.22 * t + 0.04}
+                stopOpacity={Math.min(0.50 * t + 0.18, 0.62)}
               />
               <stop
                 offset="100%"
@@ -552,8 +552,8 @@ function BadmintonHeatmapCourt({
               cy="50%"
               r="50%"
             >
-              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.30 * t + 0.08, 0.38)} />
-              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={0.12 * t} />
+              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.52 * t + 0.22, 0.62)} />
+              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.28 * t + 0.06, 0.34)} />
               <stop offset="100%" stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity="0" />
             </radialGradient>
           );
