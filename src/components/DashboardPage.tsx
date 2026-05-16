@@ -891,7 +891,7 @@ export function DashboardPage({
       formData.append("thumbnailImage", currentThumbnailBlob, "thumbnail.jpg");
       formData.append("courtCorners", buildCourtCornersPayload(currentPoints));
       formData.append("durationSeconds", String(currentVideoDuration));
-      formData.append("playerType", playerType); // "amateur" | "pro"
+      formData.append("mode", playerType);
 
       const res = await fetch("/api/v1/videos", {
         method: "POST",

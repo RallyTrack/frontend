@@ -418,8 +418,11 @@ function BadmintonHeatmapCourt({
   const accentColor = isBottom ? "#3b82f6" : "#6366f1";
 
   // ── 각 히트 포인트의 픽셀 좌표 계산 ──
+  // reportpageApi.ts 에서 0~100 범위로 정규화된 좌표를 반환한다.
+  // SVG 픽셀 좌표로 변환 시 /100 필요.
   const zonePixels = zones.map((zone) => ({
     px: OL + (zone.x / 100) * OW,
+    // y=0 → TOP(위), y=100 → BOTTOM(아래) — SVG와 동일 방향이므로 그대로 사용
     py: OT + (zone.y / 100) * OH,
     intensity: zone.intensity,
     time: zone.time,
@@ -725,31 +728,59 @@ function BadmintonHeatmapCourt({
           포지션 분포
         </p>
         <div className="space-y-2.5">
-          {[
-            { label: "네트 앞", pct: 28, color: "#ef4444" },
-            { label: "미드 코트", pct: 45, color: "#f97316" },
-            { label: "백 바운더리", pct: 27, color: "#3b82f6" },
-          ].map(({ label, pct, color }) => (
-            <div key={label}>
-              <div className="flex justify-between mb-1">
-                <span className="text-[11px] font-medium text-gray-500">
-                  {label}
-                </span>
-                <span
-                  className="text-[11px] font-bold tabular-nums"
-                  style={{ color }}
-                >
-                  {pct}%
-                </span>
+          {(() => {
+            // zones Y좌표는 0.0~1.0 범위 (reportpageApi.ts 에서 정규화 완료)
+            // top player:    y 0.0~0.5  → net y<=0.175, mid 0.175~0.35, back 0.35~0.5
+            // bottom player: y 0.5~1.0  → net y>=0.825, back 0.65~0.825, mid 0.5~0.65
+
+            let net = 0, mid = 0, back = 0;
+            zones.forEach((z) => {
+              const y = z.y;
+              if (isBottom) {
+                if (y >= 0.825)      net++;
+                else if (y >= 0.65)  back++;
+                else                 mid++;
+              } else {
+                if (y <= 0.175)      net++;
+                else if (y <= 0.35)  mid++;
+                else                 back++;
+              }
+            });
+
+            const total = zones.length || 1;
+            const netPct  = Math.round((net  / total) * 100);
+            const midPct  = Math.round((mid  / total) * 100);
+            // 반올림 오차 보정 — 합이 100이 되도록
+            const backPct = Math.max(0, 100 - netPct - midPct);
+
+            const rows = [
+              { label: "네트 앞",    pct: netPct,  color: "#ef4444" },
+              { label: "미드 코트",  pct: midPct,  color: "#f97316" },
+              { label: "백 바운더리", pct: backPct, color: "#3b82f6" },
+            ];
+
+            return rows.map(({ label, pct, color }) => (
+              <div key={label}>
+                <div className="flex justify-between mb-1">
+                  <span className="text-[11px] font-medium text-gray-500">
+                    {label}
+                  </span>
+                  <span
+                    className="text-[11px] font-bold tabular-nums"
+                    style={{ color }}
+                  >
+                    {zones.length === 0 ? "—" : `${pct}%`}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className="h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${pct}%`, backgroundColor: color }}
+                  />
+                </div>
               </div>
-              <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-                <div
-                  className="h-1.5 rounded-full"
-                  style={{ width: `${pct}%`, backgroundColor: color }}
-                />
-              </div>
-            </div>
-          ))}
+            ));
+          })()}
         </div>
       </div>
       <div
@@ -1091,11 +1122,11 @@ export function AnalysisReportPage({
 - Smash: ${stroke.smash}회, Clear: ${stroke.clear}회, Drop: ${stroke.drop}회, Drive: ${stroke.drive}회, Serve: ${stroke.serve}회, Net: ${stroke.net}회, Others(미분류): ${stroke.others}회
 
 [${playerLabel} 능력치 (0~100점, 높을수록 우수)]
-- 스매시 ${ability.smash}점: 전체 타격 중 스매시 비율 (공격성)
-- 평균 랠리 시간 ${ability.AvgRallyTime}점: 참여 랠리의 평균 지속 시간 (지구력·랠리 유지력)
-- 속도 ${ability.speed}점: 타격 빈도 기반 반응 속도
-- 이동 거리 ${ability.distance}점: 경기 중 선수의 코트 커버리지
-- 실책률 ${ability.errorRate}점: 0점=실점 없음, 100점=모든 랠리를 마지막 타격으로 마감 (낮을수록 좋음)
+- 공격성 ${ability.aggression}점: 전체 타격 중 스매시 비율
+- 랠리 유지력 ${ability.rally}점: 참여 랠리의 평균 지속 시간
+- 방어력 ${ability.defense}점: 수비 능력
+- 이동성 ${ability.mobility}점: 경기 중 선수의 코트 이동 능력
+- 일관성 ${ability.consistency}점: 다양한 상황에서의 성능 일관성
 
 [기존 코치 피드백]
 ${coaching?.feedbackText ?? "(없음)"}
@@ -1163,13 +1194,13 @@ ${coaching?.feedbackText ?? "(없음)"}
     const am = playerData.abilityMetrics;
     const clamp = (v: unknown) => Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
     const abilityData = [
-      { name: "속도",           value: clamp(am.speed) },
-      { name: "평균 랠리 시간", value: clamp(am.AvgRallyTime) },
-      { name: "스매시",         value: clamp(am.smash) },
-      { name: "이동 거리",      value: clamp(am.distance) },
-      // 실책률은 높을수록 나쁨 → 레이더 차트에서 반전하여 "안정성"으로 표시
-      // 원본 errorRate는 AI 브리핑 프롬프트에서 ability.errorRate로 직접 참조
-      { name: "안정성",         value: 100 - clamp(am.errorRate) },
+      { name: "공격성",         value: clamp(am.aggression) },
+      { name: "랠리력",          value: clamp(am.rally) },
+      { name: "수비력",          value: clamp(am.defense) },
+      { name: "기동력",          value: clamp(am.mobility) },
+      // 안정성: consistency 직접 사용
+      
+      { name: "안정성",          value: clamp(am.consistency) },
     ];
     const accentColor = activePlayer === "bottom" ? "#3b82f6" : "#6366f1";
     return { summary, heatmapZones, strokeData, abilityData, accentColor };

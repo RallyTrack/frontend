@@ -3,9 +3,9 @@
 export type PlayerKey = "top" | "bottom";
 
 export type HeatmapPoint = {
-  x: number;       // 0~100 (% of court height, top→bottom)
-  y: number;       // 0~100 (% of court width, left→right)
-  value?: number;  // 0~1 intensity
+  x: number;        // 0~100
+  y: number;        // 0~100
+  value?: number;   // 0~1 intensity
   timeSec?: number;
 };
 
@@ -23,11 +23,11 @@ export type PlayerData = {
     others: number;
   };
   abilityMetrics: {
-    smash: number;
-    AvgRallyTime: number;
-    speed: number;
-    distance: number;
-    errorRate: number;
+    aggression:  number;
+    rally:       number;
+    defense:     number;
+    mobility:    number;
+    consistency: number;
   };
   aiCoaching: {
     feedbackText: string;
@@ -46,7 +46,6 @@ export type ReportResponse = {
       totalStrokeCount: number;
       matchTime: string;
     };
-    // Per-player breakdown
     players: {
       top: PlayerData;
       bottom: PlayerData;
