@@ -383,11 +383,21 @@ export function VideoPlayerPage({
   user,
 }: VideoPlayerPageProps) {
   // ── 재생 상태 ────────────────────────────────────────────────
+
+  // displayTime("2.58s", "1:02.58" 등)을 초 단위 숫자로 파싱
+  const parseDisplayTimeSec = (s: string): number | null => {
+    const simple = s.match(/^(\d+(?:\.\d+))s?$/);
+    if (simple) return parseFloat(simple[1]);
+    const colon = s.match(/^(\d+):(\d+(?:\.\d+)?)s?$/);
+    if (colon) return parseInt(colon[1]) * 60 + parseFloat(colon[2]);
+    return null;
+  };
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<StrokeFilter>("all");
+  const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
 
   // ── 사이드바 ────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -453,7 +463,21 @@ export function VideoPlayerPage({
         if (!mounted) return;
         setVideoInfo(data.videoInfo);
         setMatchSummary(data.matchSummary);
-        setTimelineEventsState(data.timelineEvents || []);
+        setTimelineEventsState(
+          (data.timelineEvents || []).map((event) => {
+            const raw = event as any;
+            // timeSec: 백엔드가 내려주는 정밀 시간값 우선
+            if (raw.timeSec != null && typeof raw.timeSec === "number" && !Number.isInteger(raw.timeSec)) {
+              return { ...event, timestamp: raw.timeSec };
+            }
+            // displayTime 파싱으로 정수 timestamp 보정
+            if (event.displayTime && Number.isInteger(event.timestamp)) {
+              const precise = parseDisplayTimeSec(event.displayTime);
+              if (precise !== null) return { ...event, timestamp: precise };
+            }
+            return event;
+          }),
+        );
         if (data.videoInfo?.duration) setOriginalDuration(data.videoInfo.duration);
       })
       .catch((err) => {
@@ -1259,13 +1283,18 @@ export function VideoPlayerPage({
                           const cat = getStrokeCategory(event.type);
                           const style = getStrokeStyle(cat);
                           const eventKey = event.eventId ?? event.timestamp;
-                          const isActive = eventKey === activeEventId;
+                          // lastClickedIdx: 클릭한 이벤트가 currentTime 2s 이내이면 우선 적용
+                          // → 같은 정수 초에 여러 이벤트가 있어도 클릭한 항목만 활성화
+                          const isActive = lastClickedIdx === idx
+                            ? Math.abs(currentTime - event.timestamp) < 2
+                            : (lastClickedIdx === null && eventKey === activeEventId);
 
                           return (
                             <button
                               key={event.eventId ?? idx}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setLastClickedIdx(idx);
                                 handleJumpTo(event.timestamp);
                               }}
                               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left group ${
