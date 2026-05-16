@@ -34,12 +34,11 @@ interface RawPlayerReport {
     drive?: number; serve?: number; net?: number; others?: number;
   };
   abilityMetrics?: {
-    smash?: number;
-    AvgRallyTime?: number;  // 백엔드 Java camelCase
-    avgRallyTime?: number;  // 소문자 대안
-    speed?: number;
-    distance?: number;
-    errorRate?: number;
+    aggression?:  number | null;
+    rally?:       number | null;
+    defense?:     number | null;
+    mobility?:    number | null;
+    consistency?: number | null;
   };
   aiCoaching?: { feedbackText?: string };
 }
@@ -184,7 +183,7 @@ function buildEmptyPlayerData() {
   return {
     positionAnalysis: { heatmapData: [] },
     strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, others: 0 },
-    abilityMetrics: { smash: 0, AvgRallyTime: 0, speed: 0, distance: 0, errorRate: 0 },
+    abilityMetrics: { aggression: 0, rally: 0, defense: 0, mobility: 0, consistency: 0 },
     aiCoaching: { feedbackText: "" },
   };
 }
@@ -207,9 +206,7 @@ function normalizePlayerData(
       ? rawHeatmap
       : deriveHeatmapFromHits(hitsDataFallback, playerSide);
 
-  // abilityMetrics: Java는 AvgRallyTime(대문자 A), 소문자 avgRallyTime 모두 허용
   const am = raw.abilityMetrics ?? {};
-  const avgRallyTime = am.AvgRallyTime ?? am.avgRallyTime ?? 0;
 
   return {
     positionAnalysis: { heatmapData },
@@ -223,11 +220,11 @@ function normalizePlayerData(
       others: raw.strokeTypes?.others ?? 0,
     },
     abilityMetrics: {
-      smash:        am.smash        ?? 0,
-      AvgRallyTime: avgRallyTime,
-      speed:        am.speed        ?? 0,
-      distance:     am.distance     ?? 0,
-      errorRate:    am.errorRate    ?? 0,
+      aggression:  am.aggression  ?? 0,
+      rally:       am.rally       ?? 0,
+      defense:     am.defense     ?? 0,
+      mobility:    am.mobility    ?? 0,
+      consistency: am.consistency ?? 0,
     },
     aiCoaching: { feedbackText: raw.aiCoaching?.feedbackText ?? "" },
   };

@@ -882,25 +882,12 @@ function MarkdownBriefing({ content }: { content: string }) {
 // Grade system
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GRADE_THRESHOLDS: {
-  min: number;
-  grade: string;
-  color: string;
-  bg: string;
-}[] = [
-  { min: 97, grade: "A+", color: "#059669", bg: "#d1fae5" },
-  { min: 93, grade: "A", color: "#059669", bg: "#d1fae5" },
-  { min: 90, grade: "A−", color: "#059669", bg: "#d1fae5" },
-  { min: 87, grade: "B+", color: "#2563eb", bg: "#dbeafe" },
-  { min: 83, grade: "B", color: "#2563eb", bg: "#dbeafe" },
-  { min: 80, grade: "B−", color: "#2563eb", bg: "#dbeafe" },
-  { min: 77, grade: "C+", color: "#7c3aed", bg: "#ede9fe" },
-  { min: 73, grade: "C", color: "#7c3aed", bg: "#ede9fe" },
-  { min: 70, grade: "C−", color: "#7c3aed", bg: "#ede9fe" },
-  { min: 67, grade: "D+", color: "#d97706", bg: "#fef3c7" },
-  { min: 63, grade: "D", color: "#d97706", bg: "#fef3c7" },
-  { min: 60, grade: "D−", color: "#d97706", bg: "#fef3c7" },
-  { min: 0, grade: "E", color: "#dc2626", bg: "#fee2e2" },
+const GRADE_THRESHOLDS: Array<{ min: number; grade: string; color: string; bg: string }> = [
+  { min: 85, grade: "S", color: "#0ea5e9", bg: "#e0f2fe" },
+  { min: 70, grade: "A", color: "#22c55e", bg: "#dcfce7" },
+  { min: 50, grade: "B", color: "#f59e0b", bg: "#fef3c7" },
+  { min: 30, grade: "C", color: "#8b5cf6", bg: "#ede9fe" },
+  { min:  0, grade: "D", color: "#ef4444", bg: "#fee2e2" },
 ];
 
 function scoreToGrade(value: number): {
@@ -911,24 +898,25 @@ function scoreToGrade(value: number): {
   for (const t of GRADE_THRESHOLDS) {
     if (value >= t.min) return { grade: t.grade, color: t.color, bg: t.bg };
   }
-  return { grade: "E", color: "#dc2626", bg: "#fee2e2" };
+  return { grade: "D", color: "#ef4444", bg: "#fee2e2" };
 }
 
-function scoreToBarPct(value: number): number {
-  return Math.min(Math.max(value, 0), 100);
-}
+const ABILITY_DESCRIPTIONS: Record<string, string> = {
+  "공격성": "상대를 압박하고 주도권을 가져가는 성향",
+  "안정성": "실수 없이 경기를 안정적으로 풀어가는 능력",
+  "랠리력": "랠리를 길게 유지하며 버티는 지속력",
+  "기동력": "홈포지션으로의 빠른 리커버리 능력",
+  "수비력": "어려운 상황에서도 공을 받아내는 대처 능력",
+};
 
 function AbilityGradeRow({
   label,
   value,
-  accentColor,
 }: {
   label: string;
   value: number;
-  accentColor: string;
 }) {
   const { grade, color, bg } = scoreToGrade(value);
-  const pct = scoreToBarPct(value);
   return (
     <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors">
       <span
@@ -937,17 +925,11 @@ function AbilityGradeRow({
       >
         {grade}
       </span>
-      <span className="shrink-0 w-12 text-xs font-semibold text-gray-600">
+      <span className="shrink-0 w-14 text-xs font-semibold text-gray-600">
         {label}
       </span>
-      <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div
-          className="h-1.5 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: accentColor }}
-        />
-      </div>
-      <span className="shrink-0 w-8 text-right text-[10px] tabular-nums text-gray-400 font-medium">
-        {value}
+      <span className="flex-1 text-xs text-gray-600 leading-snug">
+        {ABILITY_DESCRIPTIONS[label] ?? ""}
       </span>
     </div>
   );
@@ -956,16 +938,13 @@ function AbilityGradeRow({
 function AbilityGradeCard({
   label,
   value,
-  accentColor,
 }: {
   label: string;
   value: number;
-  accentColor: string;
 }) {
   const { grade, color, bg } = scoreToGrade(value);
-  const pct = scoreToBarPct(value);
   return (
-    <div className="flex flex-col gap-2 p-3 rounded-xl bg-gray-50 border border-gray-100">
+    <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-gray-50 border border-gray-100">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-600">{label}</span>
         <span
@@ -975,15 +954,9 @@ function AbilityGradeCard({
           {grade}
         </span>
       </div>
-      <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
-        <div
-          className="h-1.5 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: accentColor }}
-        />
-      </div>
-      <span className="text-[10px] tabular-nums text-gray-400 self-end">
-        {value} / 100
-      </span>
+      <p className="text-xs text-gray-600 leading-snug">
+        {ABILITY_DESCRIPTIONS[label] ?? ""}
+      </p>
     </div>
   );
 }
@@ -1093,6 +1066,13 @@ export function AnalysisReportPage({
         const coaching = playerData.aiCoaching;
         const playerLabel =
           activePlayer === "bottom" ? "Bottom Player" : "Top Player";
+        const abilityGrades = {
+          aggression:  scoreToGrade(ability.aggression).grade,
+          rally:       scoreToGrade(ability.rally).grade,
+          defense:     scoreToGrade(ability.defense).grade,
+          mobility:    scoreToGrade(ability.mobility).grade,
+          consistency: scoreToGrade(ability.consistency).grade,
+        };
         // 현재 대부분의 타격은 others로 집계됨 (AI stroke 분류 미완성)
         const playerStrokeTotal =
           (stroke.smash ?? 0) + (stroke.clear ?? 0) + (stroke.drop ?? 0) +
@@ -1111,12 +1091,12 @@ export function AnalysisReportPage({
 - 개인 스트로크 합계: ${playerStrokeTotal}회
 - Smash: ${stroke.smash}회, Clear: ${stroke.clear}회, Drop: ${stroke.drop}회, Drive: ${stroke.drive}회, Serve: ${stroke.serve}회, Net: ${stroke.net}회, Others(미분류): ${stroke.others}회
 
-[${playerLabel} 능력치 (0~100점, 높을수록 우수)]
-- 스매시 ${ability.smash}점: 전체 타격 중 스매시 비율 (공격성)
-- 평균 랠리 시간 ${ability.AvgRallyTime}점: 참여 랠리의 평균 지속 시간 (지구력·랠리 유지력)
-- 속도 ${ability.speed}점: 타격 빈도 기반 반응 속도
-- 이동 거리 ${ability.distance}점: 경기 중 선수의 코트 커버리지
-- 실책률 ${ability.errorRate}점: 0점=실점 없음, 100점=모든 랠리를 마지막 타격으로 마감 (낮을수록 좋음)
+[${playerLabel} 능력치 등급 (S > A > B > C > D)]
+- 공격성 ${abilityGrades.aggression}등급: 전체 타격 중 스매시 비율
+- 랠리력 ${abilityGrades.rally}등급: 랠리 지속력 및 지구력
+- 수비력 ${abilityGrades.defense}등급: 빠른 반응 속도
+- 기동력 ${abilityGrades.mobility}등급: 코트 커버리지
+- 안정성 ${abilityGrades.consistency}등급: 실책 없이 안정적으로 플레이하는 능력
 
 [기존 코치 피드백]
 ${coaching?.feedbackText ?? "(없음)"}
@@ -1184,13 +1164,11 @@ ${coaching?.feedbackText ?? "(없음)"}
     const am = playerData.abilityMetrics;
     const clamp = (v: unknown) => Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
     const abilityData = [
-      { name: "속도",           value: clamp(am.speed) },
-      { name: "평균 랠리 시간", value: clamp(am.AvgRallyTime) },
-      { name: "스매시",         value: clamp(am.smash) },
-      { name: "이동 거리",      value: clamp(am.distance) },
-      // 실책률은 높을수록 나쁨 → 레이더 차트에서 반전하여 "안정성"으로 표시
-      // 원본 errorRate는 AI 브리핑 프롬프트에서 ability.errorRate로 직접 참조
-      { name: "안정성",         value: 100 - clamp(am.errorRate) },
+      { name: "공격성", value: clamp(am.aggression)  },
+      { name: "안정성", value: clamp(am.consistency) },
+      { name: "랠리력", value: clamp(am.rally)       },
+      { name: "기동력", value: clamp(am.mobility)    },
+      { name: "수비력", value: clamp(am.defense)     },
     ];
     const accentColor = activePlayer === "bottom" ? "#3b82f6" : "#6366f1";
     return { summary, heatmapZones, strokeData, abilityData, accentColor };
@@ -1787,7 +1765,6 @@ ${coaching?.feedbackText ?? "(없음)"}
                           key={a.name}
                           label={a.name}
                           value={a.value}
-                          accentColor={accentColor}
                         />
                       ))}
                     </div>
@@ -1949,7 +1926,6 @@ ${coaching?.feedbackText ?? "(없음)"}
               key={a.name}
               label={a.name}
               value={a.value}
-              accentColor={accentColor}
             />
           ))}
         </div>

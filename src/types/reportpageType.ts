@@ -23,11 +23,11 @@ export type PlayerData = {
     others: number;
   };
   abilityMetrics: {
-    smash: number;
-    AvgRallyTime: number;
-    speed: number;
-    distance: number;
-    errorRate: number;
+    aggression:  number;
+    rally:       number;
+    defense:     number;
+    mobility:    number;
+    consistency: number;
   };
   aiCoaching: {
     feedbackText: string;
