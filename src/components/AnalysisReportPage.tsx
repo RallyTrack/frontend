@@ -462,9 +462,9 @@ function BadmintonHeatmapCourt({
           height="330%"
         >
           <feGaussianBlur stdDeviation="26" result="blur" />
-          </filter>
-          {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
-          <filter
+        </filter>
+        {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
+        <filter
           id={`heatblur-halo-${uid}`}
           x="-120%"
           y="-120%"
@@ -484,19 +484,19 @@ function BadmintonHeatmapCourt({
           let r: number, g: number, b: number;
           if (t < 0.33) {
             const s = t / 0.33;
-            r = Math.round(20 + s * 40);    // 20→60
-            g = Math.round(90 + s * 60);    // 90→150
-            b = Math.round(255 - s * 30);   // 255→225
+            r = Math.round(20 + s * 40); // 20→60
+            g = Math.round(90 + s * 60); // 90→150
+            b = Math.round(255 - s * 30); // 255→225
           } else if (t < 0.66) {
             const s = (t - 0.33) / 0.33;
-            r = Math.round(60 + s * 195);   // 60→255
-            g = Math.round(150 - s * 0);    // 150→150
-            b = Math.round(225 - s * 225);  // 225→0
+            r = Math.round(60 + s * 195); // 60→255
+            g = Math.round(150 - s * 0); // 150→150
+            b = Math.round(225 - s * 225); // 225→0
           } else {
             const s = (t - 0.66) / 0.34;
-            r = Math.round(255 - s * 45);   // 255→210
-            g = Math.round(150 - s * 150);  // 150→0
-            b = Math.round(0 + s * 30);     // 0→30
+            r = Math.round(255 - s * 45); // 255→210
+            g = Math.round(150 - s * 150); // 150→0
+            b = Math.round(0 + s * 30); // 0→30
           }
           return (
             <radialGradient
@@ -520,7 +520,7 @@ function BadmintonHeatmapCourt({
               <stop
                 offset="65%"
                 stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.60 * t + 0.28, 0.78)}
+                stopOpacity={Math.min(0.6 * t + 0.28, 0.78)}
               />
               <stop
                 offset="100%"
@@ -531,18 +531,24 @@ function BadmintonHeatmapCourt({
           );
         })}
         {/* 외곽 헤일로 전용 radialGradient */}
-                {zones.map((_, i) => {
+        {zones.map((_, i) => {
           const t = zones[i].intensity;
           let r2: number, g2: number, b2: number;
           if (t < 0.33) {
             const s = t / 0.33;
-            r2 = Math.round(20 + s * 40); g2 = Math.round(90 + s * 60); b2 = Math.round(255 - s * 30);
+            r2 = Math.round(20 + s * 40);
+            g2 = Math.round(90 + s * 60);
+            b2 = Math.round(255 - s * 30);
           } else if (t < 0.66) {
             const s = (t - 0.33) / 0.33;
-            r2 = Math.round(60 + s * 195); g2 = 150; b2 = Math.round(225 - s * 225);
+            r2 = Math.round(60 + s * 195);
+            g2 = 150;
+            b2 = Math.round(225 - s * 225);
           } else {
             const s = (t - 0.66) / 0.34;
-            r2 = Math.round(255 - s * 45); g2 = Math.round(150 - s * 150); b2 = Math.round(s * 30);
+            r2 = Math.round(255 - s * 45);
+            g2 = Math.round(150 - s * 150);
+            b2 = Math.round(s * 30);
           }
           return (
             <radialGradient
@@ -552,9 +558,21 @@ function BadmintonHeatmapCourt({
               cy="50%"
               r="50%"
             >
-              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.65 * t + 0.30, 0.75)} />
-              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.38 * t + 0.12, 0.46)} />
-              <stop offset="100%" stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity="0" />
+              <stop
+                offset="0%"
+                stopColor={`rgb(${r2},${g2},${b2})`}
+                stopOpacity={Math.min(0.65 * t + 0.3, 0.75)}
+              />
+              <stop
+                offset="50%"
+                stopColor={`rgb(${r2},${g2},${b2})`}
+                stopOpacity={Math.min(0.38 * t + 0.12, 0.46)}
+              />
+              <stop
+                offset="100%"
+                stopColor={`rgb(${r2},${g2},${b2})`}
+                stopOpacity="0"
+              />
             </radialGradient>
           );
         })}
@@ -603,7 +621,7 @@ function BadmintonHeatmapCourt({
         />
       )}
 
-            {/* ── 히트맵 레이어: 헤일로(외곽 구름) + 코어(중심 색상) 이중 레이어 ── */}
+      {/* ── 히트맵 레이어: 헤일로(외곽 구름) + 코어(중심 색상) 이중 레이어 ── */}
       <g clipPath={`url(#court-clip-${uid})`}>
         {/* 1차: 넓은 헤일로 레이어 — 멀리 퍼지는 구름 효과 */}
         {zonePixels.map((zp, index) => {
@@ -643,7 +661,6 @@ function BadmintonHeatmapCourt({
           );
         })}
       </g>
-
 
       {/* ── 선택 포인트 마커 ── */}
       {selectedHeatmapPoint !== null && zonePixels[selectedHeatmapPoint] && (
@@ -882,12 +899,17 @@ function MarkdownBriefing({ content }: { content: string }) {
 // Grade system
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GRADE_THRESHOLDS: Array<{ min: number; grade: string; color: string; bg: string }> = [
+const GRADE_THRESHOLDS: Array<{
+  min: number;
+  grade: string;
+  color: string;
+  bg: string;
+}> = [
   { min: 85, grade: "S", color: "#0ea5e9", bg: "#e0f2fe" },
   { min: 70, grade: "A", color: "#22c55e", bg: "#dcfce7" },
   { min: 50, grade: "B", color: "#f59e0b", bg: "#fef3c7" },
   { min: 30, grade: "C", color: "#8b5cf6", bg: "#ede9fe" },
-  { min:  0, grade: "D", color: "#ef4444", bg: "#fee2e2" },
+  { min: 0, grade: "D", color: "#ef4444", bg: "#fee2e2" },
 ];
 
 function scoreToGrade(value: number): {
@@ -902,20 +924,14 @@ function scoreToGrade(value: number): {
 }
 
 const ABILITY_DESCRIPTIONS: Record<string, string> = {
-  "공격성": "상대를 압박하고 주도권을 가져가는 성향",
-  "안정성": "실수 없이 경기를 안정적으로 풀어가는 능력",
-  "랠리력": "랠리를 길게 유지하며 버티는 지속력",
-  "기동력": "홈포지션으로의 빠른 리커버리 능력",
-  "수비력": "어려운 상황에서도 공을 받아내는 대처 능력",
+  공격성: "상대를 압박하고 주도권을 가져가는 성향",
+  안정성: "실수 없이 경기를 안정적으로 풀어가는 능력",
+  랠리력: "랠리를 길게 유지하며 버티는 지속력",
+  기동력: "홈포지션으로의 빠른 리커버리 능력",
+  수비력: "빠른 샷을 정확하게 받아내는 대처 능력",
 };
 
-function AbilityGradeRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function AbilityGradeRow({ label, value }: { label: string; value: number }) {
   const { grade, color, bg } = scoreToGrade(value);
   return (
     <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors">
@@ -935,13 +951,7 @@ function AbilityGradeRow({
   );
 }
 
-function AbilityGradeCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function AbilityGradeCard({ label, value }: { label: string; value: number }) {
   const { grade, color, bg } = scoreToGrade(value);
   return (
     <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-gray-50 border border-gray-100">
@@ -957,6 +967,29 @@ function AbilityGradeCard({
       <p className="text-xs text-gray-600 leading-snug">
         {ABILITY_DESCRIPTIONS[label] ?? ""}
       </p>
+    </div>
+  );
+}
+
+function RadarTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: { name: string } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const { value, payload: { name } } = payload[0];
+  const { grade, color, bg } = scoreToGrade(value);
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-lg">
+      <p className="text-xs font-semibold text-gray-600 mb-1">{name}</p>
+      <span
+        className="text-xs font-black px-2 py-0.5 rounded-md"
+        style={{ color, background: bg }}
+      >
+        {grade}
+      </span>
     </div>
   );
 }
@@ -983,7 +1016,6 @@ export function AnalysisReportPage({
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reportNotReady, setReportNotReady] = useState(false); // 404 → 분석 준비 중
-
 
   const [briefings, setBriefings] = useState<Record<PlayerKey, string>>({
     top: "",
@@ -1026,7 +1058,7 @@ export function AnalysisReportPage({
         const data = await fetchReport(videoId);
         if (!alive) return;
         setReport(data);
-            } catch (e: any) {
+      } catch (e: any) {
         if (!alive) return;
         // 404: 분석 완료 전 상태 — 일반 오류가 아닌 "준비 중" UI 표시
         const status = (e as any)?.status ?? 0;
@@ -1067,16 +1099,21 @@ export function AnalysisReportPage({
         const playerLabel =
           activePlayer === "bottom" ? "Bottom Player" : "Top Player";
         const abilityGrades = {
-          aggression:  scoreToGrade(ability.aggression).grade,
-          rally:       scoreToGrade(ability.rally).grade,
-          defense:     scoreToGrade(ability.defense).grade,
-          mobility:    scoreToGrade(ability.mobility).grade,
+          aggression: scoreToGrade(ability.aggression).grade,
+          rally: scoreToGrade(ability.rally).grade,
+          defense: scoreToGrade(ability.defense).grade,
+          mobility: scoreToGrade(ability.mobility).grade,
           consistency: scoreToGrade(ability.consistency).grade,
         };
         // 현재 대부분의 타격은 others로 집계됨 (AI stroke 분류 미완성)
         const playerStrokeTotal =
-          (stroke.smash ?? 0) + (stroke.clear ?? 0) + (stroke.drop ?? 0) +
-          (stroke.drive ?? 0) + (stroke.serve ?? 0) + (stroke.net ?? 0) + (stroke.others ?? 0);
+          (stroke.smash ?? 0) +
+          (stroke.clear ?? 0) +
+          (stroke.drop ?? 0) +
+          (stroke.drive ?? 0) +
+          (stroke.serve ?? 0) +
+          (stroke.net ?? 0) +
+          (stroke.others ?? 0);
 
         const prompt = `
 당신은 전문 배드민턴 코치입니다.
@@ -1162,13 +1199,14 @@ ${coaching?.feedbackText ?? "(없음)"}
       { name: "기타", count: playerData.strokeTypes.others, color: "#94a3b8" },
     ];
     const am = playerData.abilityMetrics;
-    const clamp = (v: unknown) => Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
+    const clamp = (v: unknown) =>
+      Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
     const abilityData = [
-      { name: "공격성", value: clamp(am.aggression)  },
+      { name: "공격성", value: clamp(am.aggression) },
       { name: "안정성", value: clamp(am.consistency) },
-      { name: "랠리력", value: clamp(am.rally)       },
-      { name: "기동력", value: clamp(am.mobility)    },
-      { name: "수비력", value: clamp(am.defense)     },
+      { name: "랠리력", value: clamp(am.rally) },
+      { name: "기동력", value: clamp(am.mobility) },
+      { name: "수비력", value: clamp(am.defense) },
     ];
     const accentColor = activePlayer === "bottom" ? "#3b82f6" : "#6366f1";
     return { summary, heatmapZones, strokeData, abilityData, accentColor };
@@ -1269,7 +1307,8 @@ ${coaching?.feedbackText ?? "(없음)"}
               분석 리포트 준비 중
             </h2>
             <p className="text-sm text-gray-500 leading-relaxed mb-6">
-              AI가 경기 영상을 분석하고 있습니다.<br />
+              AI가 경기 영상을 분석하고 있습니다.
+              <br />
               분석이 완료되면 리포트가 자동으로 생성됩니다.
             </p>
             <div className="flex items-center justify-center gap-1.5 mb-8">
@@ -1749,13 +1788,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                             fill={accentColor}
                             fillOpacity={0.35}
                           />
-                          <Tooltip
-                            contentStyle={{
-                              borderRadius: 10,
-                              border: "1px solid #e5e7eb",
-                              fontSize: 12,
-                            }}
-                          />
+                          <Tooltip content={<RadarTooltip />} />
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1916,17 +1949,13 @@ ${coaching?.feedbackText ?? "(없음)"}
                 fill={accentColor}
                 fillOpacity={0.4}
               />
-              <Tooltip contentStyle={{ borderRadius: 10 }} />
+              <Tooltip content={<RadarTooltip />} />
             </RadarChart>
           </ResponsiveContainer>
         </div>
         <div className="grid grid-cols-1 gap-2">
           {abilityData.map((a) => (
-            <AbilityGradeCard
-              key={a.name}
-              label={a.name}
-              value={a.value}
-            />
+            <AbilityGradeCard key={a.name} label={a.name} value={a.value} />
           ))}
         </div>
       </Modal>
