@@ -474,86 +474,66 @@ function BadmintonHeatmapCourt({
           <feGaussianBlur stdDeviation="50" result="blur" />
         </filter>
 
-        {/* 히트맵 색상 매핑: 저빈도(전기 파랑) → 중빈도(진한 앰버) → 고빈도(크림슨 레드) */}
+        {/* ── 히트맵 색상 ──────────────────────────────────────────────────────────
+            선수별 단일 색상 계열, 강도(t)에 따라 색과 투명도 모두 변화
+            Bottom: 파랑 계열  연하늘(195,220,255) → 딥블루(15,45,210)
+            Top:    인디고 계열 연보라(200,185,255) → 딥인디고(50,20,200)
+
+            ★ opacity 커브: t² 사용 → 저빈도는 거의 안 보이고, 고빈도만 강하게
+               t=0.1 → opacity 0.01 (거의 투명)
+               t=0.5 → opacity 0.25 (연하게)
+               t=0.8 → opacity 0.64 (뚜렷하게)
+               t=1.0 → opacity 0.99 (완전히 진하게)
+        ────────────────────────────────────────────────────────────────────── */}
         {zones.map((_, i) => {
-          const t = zones[i].intensity; // 0~1
-          // 색상 팔레트: 초록 코트와 최대 대비 + 채도 극대화
-          // 저빈도(0~0.33): 전기 파랑(20,90,255) — 초록과 강한 보색 대비
-          // 중빈도(0.33~0.66): 진한 앰버(255,150,0) — 채도 높은 주황
-          // 고빈도(0.66~1.0): 크림슨(210,0,30) — 깊고 진한 빨강
+          const t  = zones[i].intensity;
+          const t2 = t * t; // 제곱 커브: 저강도 억제, 고강도 강조
+
+          // 선수별 색상: 저강도(연한 파스텔) → 고강도(딥 컬러)
           let r: number, g: number, b: number;
-          if (t < 0.33) {
-            const s = t / 0.33;
-            r = Math.round(20 + s * 40);    // 20→60
-            g = Math.round(90 + s * 60);    // 90→150
-            b = Math.round(255 - s * 30);   // 255→225
-          } else if (t < 0.66) {
-            const s = (t - 0.33) / 0.33;
-            r = Math.round(60 + s * 195);   // 60→255
-            g = Math.round(150 - s * 0);    // 150→150
-            b = Math.round(225 - s * 225);  // 225→0
+          if (isBottom) {
+            // 파랑: 연하늘(195,220,255) → 딥블루(15,45,210)
+            r = Math.round(195 - t * 180);  // 195 → 15
+            g = Math.round(220 - t * 175);  // 220 → 45
+            b = Math.round(255 - t * 45);   // 255 → 210
           } else {
-            const s = (t - 0.66) / 0.34;
-            r = Math.round(255 - s * 45);   // 255→210
-            g = Math.round(150 - s * 150);  // 150→0
-            b = Math.round(0 + s * 30);     // 0→30
+            // 인디고: 연보라(200,185,255) → 딥인디고(50,20,200)
+            r = Math.round(200 - t * 150);  // 200 → 50
+            g = Math.round(185 - t * 165);  // 185 → 20
+            b = Math.round(255 - t * 55);   // 255 → 200
           }
+
           return (
-            <radialGradient
-              key={i}
-              id={`hg-${uid}-${i}`}
-              cx="50%"
-              cy="50%"
-              r="50%"
-            >
-              {/* opacity 최대치로 올려 블러 후에도 색이 충분히 남도록 */}
-              <stop
-                offset="0%"
-                stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={0.99}
-              />
-              <stop
-                offset="35%"
-                stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.85 * t + 0.55, 0.96)}
-              />
-              <stop
-                offset="65%"
-                stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity={Math.min(0.60 * t + 0.28, 0.78)}
-              />
-              <stop
-                offset="100%"
-                stopColor={`rgb(${r},${g},${b})`}
-                stopOpacity="0"
-              />
+            <radialGradient key={i} id={`hg-${uid}-${i}`} cx="50%" cy="50%" r="50%">
+              {/* 중심: t² 커브 → 저빈도 거의 투명, 고빈도 완전 불투명 */}
+              <stop offset="0%"   stopColor={`rgb(${r},${g},${b})`} stopOpacity={Math.min(t2 * 0.97 + 0.02, 0.99)} />
+              <stop offset="35%"  stopColor={`rgb(${r},${g},${b})`} stopOpacity={t2 * 0.88} />
+              <stop offset="65%"  stopColor={`rgb(${r},${g},${b})`} stopOpacity={t2 * 0.62} />
+              <stop offset="100%" stopColor={`rgb(${r},${g},${b})`} stopOpacity="0" />
             </radialGradient>
           );
         })}
-        {/* 외곽 헤일로 전용 radialGradient */}
-                {zones.map((_, i) => {
-          const t = zones[i].intensity;
+
+        {/* 외곽 헤일로 전용 radialGradient — 동일 색상, t² 커브 */}
+        {zones.map((_, i) => {
+          const t  = zones[i].intensity;
+          const t2 = t * t;
+
           let r2: number, g2: number, b2: number;
-          if (t < 0.33) {
-            const s = t / 0.33;
-            r2 = Math.round(20 + s * 40); g2 = Math.round(90 + s * 60); b2 = Math.round(255 - s * 30);
-          } else if (t < 0.66) {
-            const s = (t - 0.33) / 0.33;
-            r2 = Math.round(60 + s * 195); g2 = 150; b2 = Math.round(225 - s * 225);
+          if (isBottom) {
+            r2 = Math.round(195 - t * 180);
+            g2 = Math.round(220 - t * 175);
+            b2 = Math.round(255 - t * 45);
           } else {
-            const s = (t - 0.66) / 0.34;
-            r2 = Math.round(255 - s * 45); g2 = Math.round(150 - s * 150); b2 = Math.round(s * 30);
+            r2 = Math.round(200 - t * 150);
+            g2 = Math.round(185 - t * 165);
+            b2 = Math.round(255 - t * 55);
           }
+
           return (
-            <radialGradient
-              key={`halo-grad-${i}`}
-              id={`hg-halo-${uid}-${i}`}
-              cx="50%"
-              cy="50%"
-              r="50%"
-            >
-              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.65 * t + 0.30, 0.75)} />
-              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={Math.min(0.38 * t + 0.12, 0.46)} />
+            <radialGradient key={`halo-grad-${i}`} id={`hg-halo-${uid}-${i}`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={t2 * 0.55} />
+              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={t2 * 0.30} />
               <stop offset="100%" stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity="0" />
             </radialGradient>
           );
@@ -794,22 +774,21 @@ function BadmintonHeatmapCourt({
             : "히트맵 데이터가 없습니다."}
         </p>
       </div>
-      <div className="mt-3 flex gap-3 flex-wrap">
-        {[
-          { label: "고빈도", color: "rgba(255,80,0,0.85)" },
-          { label: "중빈도", color: "rgba(255,230,0,0.90)" },
-          { label: "저빈도", color: "rgba(55,190,255,0.90)" },
-        ].map(({ label, color }) => (
-          <div key={label} className="flex items-center gap-1.5">
-            <div
-              className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ backgroundColor: color }}
-            />
-            <span className="text-[10px] text-gray-400 font-medium">
-              {label}
-            </span>
-          </div>
-        ))}
+      <div className="mt-4 flex items-center gap-3">
+        {/* 그라디언트 바: 선수 색상으로 낮음→높음 */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="text-[10px] text-gray-400 font-medium shrink-0">낮음</span>
+          <div
+            className="flex-1 h-2 rounded-full"
+            style={{
+              background: isBottom
+                ? "linear-gradient(to right, rgba(195,220,255,0.25), rgba(15,45,210,0.92))"
+                : "linear-gradient(to right, rgba(200,185,255,0.25), rgba(50,20,200,0.92))",
+            }}
+          />
+          <span className="text-[10px] text-gray-400 font-medium shrink-0">높음</span>
+        </div>
+        <span className="text-[10px] text-gray-400">샷 밀집도</span>
       </div>
     </div>
   );
