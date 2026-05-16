@@ -506,6 +506,7 @@ export function DashboardPage({
   const [modalStep, setModalStep] = useState<ModalStep>("upload");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [videoName, setVideoName] = useState("");
+  const [playerType, setPlayerType] = useState<"amateur" | "pro">("amateur");
   const [isDragging, setIsDragging] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
   const [totalFrames, setTotalFrames] = useState(0);
@@ -839,6 +840,7 @@ export function DashboardPage({
     setModalStep("upload");
     setUploadFile(null);
     setVideoName("");
+    setPlayerType("amateur");
     setPoints([]);
     setFrameIndex(0);
     setCapturedDataUrl(null);
@@ -889,6 +891,7 @@ export function DashboardPage({
       formData.append("thumbnailImage", currentThumbnailBlob, "thumbnail.jpg");
       formData.append("courtCorners", buildCourtCornersPayload(currentPoints));
       formData.append("durationSeconds", String(currentVideoDuration));
+      formData.append("playerType", playerType); // "amateur" | "pro"
 
       const res = await fetch("/api/v1/videos", {
         method: "POST",
@@ -1241,6 +1244,67 @@ export function DashboardPage({
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-gray-50 placeholder:text-gray-400"
                     placeholder="예: 주말 복식 경기"
                   />
+                </div>
+
+                {/* ── 선수 유형 선택 ── */}
+                <div className="mb-5">
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">선수 유형</label>
+                  <p className="text-[11px] text-gray-400 mb-3">분석 방식이 달라지니 정확히 선택해주세요</p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setPlayerType("amateur")}
+                      className={`relative flex flex-col items-start gap-1.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all ${
+                        playerType === "amateur"
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <span className="text-lg">🏸</span>
+                        <span className={`text-sm font-bold ${playerType === "amateur" ? "text-blue-700" : "text-gray-700"}`}>
+                          아마추어
+                        </span>
+                        {playerType === "amateur" && (
+                          <span className="ml-auto w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[11px] leading-relaxed ${playerType === "amateur" ? "text-blue-500" : "text-gray-400"}`}>
+                        동호회·학교·취미 경기
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPlayerType("pro")}
+                      className={`relative flex flex-col items-start gap-1.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all ${
+                        playerType === "pro"
+                          ? "border-violet-500 bg-violet-50"
+                          : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <span className="text-lg">🏆</span>
+                        <span className={`text-sm font-bold ${playerType === "pro" ? "text-violet-700" : "text-gray-700"}`}>
+                          프로
+                        </span>
+                        {playerType === "pro" && (
+                          <span className="ml-auto w-4 h-4 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                              <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[11px] leading-relaxed ${playerType === "pro" ? "text-violet-500" : "text-gray-400"}`}>
+                        실업·국가대표·공식 대회
+                      </p>
+                    </button>
+                  </div>
                 </div>
                 <div className="mb-6">
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">영상 파일</label>

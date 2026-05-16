@@ -23,6 +23,12 @@ import {
   Flame,
   Star,
   Timer,
+  ArrowUp,
+  ArrowDown,
+  ArrowRight,
+  Minus,
+  Circle,
+  MoreHorizontal,
 } from "lucide-react";
 import { Header, type Page } from "./Header";
 import {
@@ -59,14 +65,25 @@ interface Highlight {
   description: string;
 }
 
+// ── 스트로크 필터 카테고리 ──────────────────────────────────
+type StrokeFilter =
+  | "all"
+  | "smash"
+  | "clear"
+  | "drop"
+  | "drive"
+  | "serve"
+  | "net"
+  | "other";
+
 // TOP 3 하이라이트 클립 타입 (7초 클립 정보 포함)
 interface HighlightClip {
   id: string;
   rank: 1 | 2 | 3;
   type: "smash" | "score" | "rally";
-  time: number;        // 클립 시작 중심 시각 (초)
-  clipStart: number;   // 클립 시작 (time - 3.5초, 최소 0)
-  clipEnd: number;     // 클립 종료 (time + 3.5초)
+  time: number;
+  clipStart: number;
+  clipEnd: number;
   label: string;
   description: string;
 }
@@ -78,8 +95,8 @@ type VideoMode = "original" | "analyzed";
 // ─────────────────────────────────────────────────────────────
 function pickTop3(highlights: Highlight[]): HighlightClip[] {
   const PRIORITY: Record<string, number> = { smash: 0, score: 1, rally: 2 };
-  const DEDUP_WINDOW = 3; // seconds
-  const CLIP_HALF = 3.5;  // ±3.5s → 7s clip
+  const DEDUP_WINDOW = 3;
+  const CLIP_HALF = 3.5;
 
   const sorted = [...highlights].sort((a, b) => {
     const pa = PRIORITY[a.type] ?? 99;
@@ -108,7 +125,7 @@ function pickTop3(highlights: Highlight[]): HighlightClip[] {
 }
 
 // ─────────────────────────────────────────────────────────────
-// HighlightClipCard — hover 시 video seek 미리보기
+// HighlightClipCard
 // ─────────────────────────────────────────────────────────────
 function HighlightClipCard({
   clip,
@@ -159,7 +176,6 @@ function HighlightClipCard({
       onMouseLeave={() => setIsHovering(false)}
       className={`relative w-full text-left rounded-2xl border overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${rc.bg} ${rc.border}`}
     >
-      {/* 썸네일/프리뷰 영역 */}
       <div className="relative aspect-video bg-gray-900 overflow-hidden">
         {videoSrc ? (
           <video
@@ -175,8 +191,6 @@ function HighlightClipCard({
             <Play className="size-8 text-white/30" />
           </div>
         )}
-
-        {/* 호버 오버레이 */}
         <div
           className={`absolute inset-0 bg-black/20 flex items-center justify-center transition-opacity duration-200 ${
             isHovering ? "opacity-100" : "opacity-0"
@@ -186,19 +200,13 @@ function HighlightClipCard({
             <Play className="size-4 text-gray-900 translate-x-px" />
           </div>
         </div>
-
-        {/* 순위 배지 */}
         <div className={`absolute top-2 left-2 w-7 h-7 rounded-full ${rc.badge} flex items-center justify-center shadow-md`}>
           <span className="text-white text-xs font-black">#{clip.rank}</span>
         </div>
-
-        {/* 시간 배지 */}
         <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-2 py-0.5 rounded-md backdrop-blur-sm">
           {formatTime(clip.time)}
         </div>
       </div>
-
-      {/* 정보 영역 */}
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-1.5 mb-0.5">
           <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${rc.text}`}>
@@ -216,9 +224,8 @@ function HighlightClipCard({
 }
 
 // ─────────────────────────────────────────────────────────────
-// 미니맵 컴포넌트 — 백엔드에서 받아온 영상을 재생
+// 미니맵 컴포넌트
 // ─────────────────────────────────────────────────────────────
-
 function MiniCourtMap({
   minimapVideoUrl,
   currentTime,
@@ -281,6 +288,91 @@ function MiniCourtMap({
 }
 
 // ─────────────────────────────────────────────────────────────
+// 스트로크 유틸리티
+// ─────────────────────────────────────────────────────────────
+
+/** API 이벤트의 type 문자열 → StrokeFilter 카테고리 */
+function getStrokeCategory(type: string): Exclude<StrokeFilter, "all"> {
+  switch (type) {
+    case "스매시":
+    case "Smash":
+    case "smash":
+      return "smash";
+    case "클리어":
+    case "Clear":
+    case "clear":
+      return "clear";
+    case "드롭":
+    case "Drop":
+    case "drop":
+      return "drop";
+    case "드라이브":
+    case "Drive":
+    case "drive":
+      return "drive";
+    case "서브":
+    case "Serve":
+    case "serve":
+      return "serve";
+    case "네트":
+    case "Net":
+    case "net":
+      return "net";
+    // 레거시 매핑
+    case "득점": return "other";
+    case "랠리": return "other";
+    default:     return "other";
+  }
+}
+
+const STROKE_FILTER_LIST: { key: StrokeFilter; label: string }[] = [
+  { key: "all",   label: "전체"   },
+  { key: "smash", label: "스매시" },
+  { key: "clear", label: "클리어" },
+  { key: "drop",  label: "드롭"   },
+  { key: "drive", label: "드라이브" },
+  { key: "serve", label: "서브"   },
+  { key: "net",   label: "네트"   },
+  { key: "other", label: "기타"   },
+];
+
+function getStrokeIcon(cat: Exclude<StrokeFilter, "all">) {
+  switch (cat) {
+    case "smash":  return <Zap       className="size-3.5" />;
+    case "clear":  return <ArrowUp   className="size-3.5" />;
+    case "drop":   return <ArrowDown className="size-3.5" />;
+    case "drive":  return <ArrowRight className="size-3.5" />;
+    case "serve":  return <Circle    className="size-3.5" />;
+    case "net":    return <Minus     className="size-3.5" />;
+    default:       return <MoreHorizontal className="size-3.5" />;
+  }
+}
+
+function getStrokeStyle(cat: Exclude<StrokeFilter, "all">) {
+  switch (cat) {
+    case "smash":  return { badge: "bg-rose-50 text-rose-700 border-rose-200",     icon: "text-rose-500"    };
+    case "clear":  return { badge: "bg-sky-50 text-sky-700 border-sky-200",        icon: "text-sky-500"     };
+    case "drop":   return { badge: "bg-violet-50 text-violet-700 border-violet-200", icon: "text-violet-500" };
+    case "drive":  return { badge: "bg-amber-50 text-amber-700 border-amber-200",  icon: "text-amber-500"   };
+    case "serve":  return { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "text-emerald-500" };
+    case "net":    return { badge: "bg-orange-50 text-orange-700 border-orange-200", icon: "text-orange-500" };
+    default:       return { badge: "bg-gray-50 text-gray-600 border-gray-200",     icon: "text-gray-400"    };
+  }
+}
+
+function getStrokeMarkerColor(cat: Exclude<StrokeFilter, "all">) {
+  switch (cat) {
+    case "smash":  return "bg-rose-400";
+    case "clear":  return "bg-sky-400";
+    case "drop":   return "bg-violet-400";
+    case "drive":  return "bg-amber-400";
+    case "serve":  return "bg-emerald-400";
+    case "net":    return "bg-orange-400";
+    default:       return "bg-gray-400";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // 컴포넌트
 // ─────────────────────────────────────────────────────────────
 
@@ -295,7 +387,7 @@ export function VideoPlayerPage({
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | "score" | "rally" | "smash">("all");
+  const [activeFilter, setActiveFilter] = useState<StrokeFilter>("all");
 
   // ── 사이드바 ────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -584,50 +676,23 @@ export function VideoPlayerPage({
     return `${m}:${String(sec).padStart(2, "0")}`;
   };
 
-  const getHighlightCategory = (type: string): "score" | "rally" | "smash" | "default" => {
-    switch (type) {
-      case "득점": return "score";
-      case "랠리": return "rally";
-      case "스매시": return "smash";
-      default: return "default";
-    }
-  };
-
-  const getHighlightIcon = (type: string) => {
-    switch (type) {
-      case "score": return <Trophy className="size-3.5" />;
-      case "rally": return <Target className="size-3.5" />;
-      case "smash": return <Zap className="size-3.5" />;
-      default: return <Clock className="size-3.5" />;
-    }
-  };
-
-  const getCategoryStyle = (category: string) => {
-    switch (category) {
-      case "score": return { badge: "bg-amber-50 text-amber-700 border-amber-200", icon: "text-amber-500" };
-      case "rally": return { badge: "bg-violet-50 text-violet-700 border-violet-200", icon: "text-violet-500" };
-      case "smash": return { badge: "bg-rose-50 text-rose-700 border-rose-200", icon: "text-rose-500" };
-      default: return { badge: "bg-sky-50 text-sky-700 border-sky-200", icon: "text-sky-500" };
-    }
-  };
-
-  const getProgressMarkerColor = (type: string) => {
-    switch (type) {
-      case "score": return "bg-amber-400";
-      case "rally": return "bg-violet-400";
-      case "smash": return "bg-rose-400";
-      default: return "bg-sky-400";
-    }
+  // TOP 3 하이라이트용 레거시 카테고리 (스매시/득점/랠리 우선순위)
+  const getLegacyHighlightType = (type: string): "score" | "rally" | "smash" | null => {
+    const cat = getStrokeCategory(type);
+    if (cat === "smash") return "smash";
+    if (type === "득점") return "score";
+    if (type === "랠리") return "rally";
+    return null;
   };
 
   const derivedHighlights = useMemo(() => {
     return timelineEventsState
       .map((e) => {
-        const category = getHighlightCategory(e.type);
-        if (category === "default") return null;
+        const legacyType = getLegacyHighlightType(e.type);
+        if (!legacyType) return null;
         return {
           id: String(e.eventId ?? e.timestamp),
-          type: category,
+          type: legacyType,
           time: e.timestamp,
           label: e.title || e.type,
           description: e.description || "",
@@ -636,15 +701,18 @@ export function VideoPlayerPage({
       .filter(Boolean) as Highlight[];
   }, [timelineEventsState]);
 
-  // TOP 3 하이라이트 클립 계산
   const top3Clips = useMemo(() => pickTop3(derivedHighlights), [derivedHighlights]);
 
+  // ── 스트로크 필터링 ─────────────────────────────────────────
   const filteredTimelineEvents = timelineEventsState.filter((e) => {
     if (activeFilter === "all") return true;
-    return getHighlightCategory(e.type) === activeFilter;
+    return getStrokeCategory(e.type) === activeFilter;
   });
 
-  // 타임라인 isActive: ±2초 내 가장 가까운 하나의 이벤트만 활성화
+  // ── 프로그레스 마커: 필터 반영 ─────────────────────────────
+  const markerEvents = timelineEventsState; // 항상 전체 표시
+
+  // ── 타임라인 활성 이벤트 ────────────────────────────────────
   const activeEventId = useMemo(() => {
     if (activeDuration <= 0) return null;
     let best: { id: string | number; dist: number } | null = null;
@@ -657,11 +725,23 @@ export function VideoPlayerPage({
     return best ? best.id : null;
   }, [currentTime, filteredTimelineEvents, activeDuration]);
 
-  const scoreLeft = matchSummary?.matchScore?.split(":")[0] ?? "-";
+  const scoreLeft  = matchSummary?.matchScore?.split(":")[0] ?? "-";
   const scoreRight = matchSummary?.matchScore?.split(":")[1] ?? "-";
 
   const progressPct =
     activeDuration > 0 ? Math.min((currentTime / activeDuration) * 100, 100) : 0;
+
+  // ── 필터별 이벤트 카운트 ────────────────────────────────────
+  const filterCounts = useMemo(() => {
+    const counts: Record<StrokeFilter, number> = {
+      all: timelineEventsState.length,
+      smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, other: 0,
+    };
+    timelineEventsState.forEach((e) => {
+      counts[getStrokeCategory(e.type)]++;
+    });
+    return counts;
+  }, [timelineEventsState]);
 
   // ─────────────────────────────────────────────────────────────
   // 렌더링
@@ -993,13 +1073,17 @@ export function VideoPlayerPage({
                       className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md border-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
                       style={{ left: `${progressPct}%`, borderColor: videoMode === "analyzed" ? "#f59e0b" : "#3b82f6" }}
                     />
-                    {derivedHighlights.map((h, idx) => (
-                      <div
-                        key={h.id || idx}
-                        className={`absolute top-1/2 -translate-y-1/2 w-0.5 h-3 rounded-full pointer-events-none ${getProgressMarkerColor(h.type)}`}
-                        style={{ left: `${activeDuration > 0 ? (h.time / activeDuration) * 100 : 0}%` }}
-                      />
-                    ))}
+                    {/* 프로그레스 마커: 스트로크 타입별 색상 */}
+                    {markerEvents.map((h, idx) => {
+                      const cat = getStrokeCategory(h.type);
+                      return (
+                        <div
+                          key={h.eventId ?? idx}
+                          className={`absolute top-1/2 -translate-y-1/2 w-0.5 h-3 rounded-full pointer-events-none ${getStrokeMarkerColor(cat)}`}
+                          style={{ left: `${activeDuration > 0 ? (h.timestamp / activeDuration) * 100 : 0}%` }}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1053,9 +1137,7 @@ export function VideoPlayerPage({
                 </div>
               </div>
 
-              {/* ══════════════════════════════════════════════
-                  TOP 3 하이라이트 섹션
-                 ══════════════════════════════════════════════ */}
+              {/* TOP 3 하이라이트 */}
               {top3Clips.length > 0 && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                   <div className="flex items-center gap-2 mb-4">
@@ -1081,41 +1163,85 @@ export function VideoPlayerPage({
             {/* ── 우 컬럼: 매치 스코어 + 타임라인 ── */}
             <div className="w-[340px] shrink-0">
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden sticky top-20 h-[calc(100vh-96px)]">
-                {/* 스코어 */}
+
+                {/* ── 매치 스코어 ── */}
                 <div className="px-6 pt-6 pb-5 border-b border-gray-100">
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-4">매치 스코어</p>
                   <div className="flex items-center justify-center gap-4">
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreLeft}</span>
-                      <span className="text-[10px] text-gray-400 font-medium">Player A</span>
+                      {/* ↓ Player A → Top Player */}
+                      <span className="text-[10px] text-gray-400 font-medium">Top Player</span>
                     </div>
                     <span className="text-xl font-light text-gray-200 pb-4">:</span>
                     <div className="flex flex-col items-center gap-1">
                       <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreRight}</span>
-                      <span className="text-[10px] text-gray-400 font-medium">Player B</span>
+                      {/* ↓ Player B → Bottom Player */}
+                      <span className="text-[10px] text-gray-400 font-medium">Bottom Player</span>
                     </div>
                   </div>
                 </div>
 
-                {/* 타임라인 */}
+                {/* ── 타임라인 ── */}
                 <div className="flex flex-col flex-1 min-h-0">
-                  <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
+                  <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-shrink-0">
                     <h3 className="text-xs font-bold text-gray-900 uppercase tracking-[0.1em]">타임라인</h3>
-                    <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
-                      {(["all", "score", "rally", "smash"] as const).map((f) => (
-                        <button
-                          key={f}
-                          onClick={() => setActiveFilter(f)}
-                          className={`px-2 py-1 rounded-md text-[10px] font-semibold transition-all ${
-                            activeFilter === f ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                          }`}
-                        >
-                          {f === "all" ? "전체" : f === "score" ? "득점" : f === "rally" ? "랠리" : "스매시"}
-                        </button>
-                      ))}
+                    {/* 총 이벤트 수 */}
+                    <span className="text-[10px] text-gray-400 font-mono tabular-nums">
+                      {filteredTimelineEvents.length}개 이벤트
+                    </span>
+                  </div>
+
+                  {/* ── 스트로크 필터 탭 (스크롤 가능) ── */}
+                  <div className="px-4 pb-3 flex-shrink-0">
+                    <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
+                      {STROKE_FILTER_LIST.map(({ key, label }) => {
+                        const count = filterCounts[key];
+                        const isActive = activeFilter === key;
+                        const cat = key !== "all" ? key as Exclude<StrokeFilter, "all"> : null;
+                        const style = cat ? getStrokeStyle(cat) : null;
+
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => setActiveFilter(key)}
+                            className={`
+                              flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold
+                              whitespace-nowrap shrink-0 border transition-all duration-150
+                              ${isActive
+                                ? cat
+                                  ? `${style!.badge} shadow-sm`
+                                  : "bg-gray-900 text-white border-gray-900 shadow-sm"
+                                : "bg-white text-gray-400 border-gray-100 hover:border-gray-200 hover:text-gray-600"
+                              }
+                            `}
+                          >
+                            {cat && isActive && (
+                              <span className={style!.icon}>
+                                {getStrokeIcon(cat)}
+                              </span>
+                            )}
+                            {label}
+                            {count > 0 && (
+                              <span
+                                className={`
+                                  ml-0.5 text-[9px] font-bold px-1 py-0.5 rounded-full tabular-nums
+                                  ${isActive
+                                    ? cat ? "bg-white/60" : "bg-white/20"
+                                    : "bg-gray-100 text-gray-400"
+                                  }
+                                `}
+                              >
+                                {count}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
+                  {/* ── 이벤트 리스트 ── */}
                   <div className="flex-1 overflow-y-auto px-3 pb-4">
                     {filteredTimelineEvents.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1123,12 +1249,15 @@ export function VideoPlayerPage({
                           <Clock className="size-4 text-gray-400" />
                         </div>
                         <p className="text-sm text-gray-400 font-medium">이벤트가 없습니다</p>
+                        <p className="text-xs text-gray-300 mt-1">
+                          {activeFilter !== "all" && "다른 스트로크 유형을 선택해보세요"}
+                        </p>
                       </div>
                     ) : (
                       <div className="space-y-1">
                         {filteredTimelineEvents.map((event, idx) => {
-                          const category = getHighlightCategory(event.type);
-                          const style = getCategoryStyle(category);
+                          const cat = getStrokeCategory(event.type);
+                          const style = getStrokeStyle(cat);
                           const eventKey = event.eventId ?? event.timestamp;
                           const isActive = eventKey === activeEventId;
 
@@ -1146,11 +1275,13 @@ export function VideoPlayerPage({
                               }`}
                             >
                               <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg border ${style.badge} ${style.icon}`}>
-                                {getHighlightIcon(category)}
+                                {getStrokeIcon(cat)}
                               </span>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-xs font-semibold text-gray-800 truncate">{event.title || event.type}</span>
+                                  <span className="text-xs font-semibold text-gray-800 truncate">
+                                    {event.title || event.type}
+                                  </span>
                                   <span className="text-[10px] font-mono text-gray-400 flex-shrink-0 tabular-nums">
                                     {event.displayTime || formatTime(event.timestamp)}
                                   </span>
