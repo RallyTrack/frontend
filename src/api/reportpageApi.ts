@@ -55,6 +55,8 @@ interface RawAnalysisResponse {
       opponentScore?: number;
       totalStrokeCount?: number;
       matchTime?: string;
+      unknownRallies?: number;
+      totalRallies?: number;
     };
     // flat legacy 필드 (AnalysisReportResponse 최상위)
     matchOutcome?: string;
@@ -263,6 +265,8 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
       ?? data.totalHits
       ?? 0,
     matchTime:         data.summary?.matchTime ?? "분석 완료",
+    unknownRallies:    data.summary?.unknownRallies ?? 0,
+    totalRallies:      data.summary?.totalRallies   ?? 0,
   };
 
   // ── players: PlayersDto(중첩) 또는 legacy flat 필드로 폴백 ──
