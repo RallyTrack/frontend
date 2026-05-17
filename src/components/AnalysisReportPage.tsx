@@ -422,7 +422,6 @@ function BadmintonHeatmapCourt({
   // SVG 픽셀 좌표로 변환 시 /100 필요.
   const zonePixels = zones.map((zone) => ({
     px: OL + (zone.x / 100) * OW,
-    // y=0 → TOP(위), y=100 → BOTTOM(아래) — SVG와 동일 방향이므로 그대로 사용
     py: OT + (zone.y / 100) * OH,
     intensity: zone.intensity,
     time: zone.time,
