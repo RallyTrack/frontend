@@ -15,6 +15,7 @@ export interface VideoInfo {
 
 export interface MatchSummary {
   matchScore?: string;
+  unknownRallies?: number;
   totalRallies?: number;
   totalDuration?: number;
   [key: string]: any;
@@ -34,6 +35,21 @@ export interface VideoDetailResponse {
   videoInfo: VideoInfo;
   matchSummary: MatchSummary;
   timelineEvents: ApiTimelineEvent[];
+}
+
+export async function updateMatchScore(
+  videoId: string,
+  topScore: number,
+  bottomScore: number,
+): Promise<void> {
+  const response = await apiClient(`/api/v1/videos/${videoId}/score`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topScore, bottomScore }),
+  });
+  if (!response.ok) {
+    throw new Error(`점수 수정 실패: ${response.status}`);
+  }
 }
 
 export async function fetchVideoDetail(videoId: string): Promise<VideoDetailResponse> {

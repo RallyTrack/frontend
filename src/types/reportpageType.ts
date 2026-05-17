@@ -42,15 +42,24 @@ export type ReportResponse = {
     summary: {
       myScore: number;
       opponentScore: number;
-      matchOutcome: "WIN" | "LOSE" | "DRAW";
+      matchOutcome: "WIN" | "LOSE" | "DRAW" | "BOTTOM_WIN" | "TOP_WIN";
       totalStrokeCount: number;
       matchTime: string;
+      unknownRallies?: number;
+      totalRallies?: number;
     };
     players: {
       top: PlayerData;
       bottom: PlayerData;
     };
   };
+};
+
+export type RallyResult = {
+  rallyNumber:  number;
+  resultType:   "WINNER" | "CONFIRMED_ERROR" | "UNKNOWN";
+  marginCm:     number | null;
+  confidence:   "HIGH" | "LOW" | null;
 };
 
 export type ApiErrorResponse = {

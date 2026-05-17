@@ -29,10 +29,15 @@ import {
   Minus,
   Circle,
   MoreHorizontal,
+  Pencil,
+  Info,
+  Check,
+  X,
 } from "lucide-react";
 import { Header, type Page } from "./Header";
 import {
   fetchVideoDetail,
+  updateMatchScore,
   type VideoInfo,
   type MatchSummary,
   type ApiTimelineEvent,
@@ -383,11 +388,21 @@ export function VideoPlayerPage({
   user,
 }: VideoPlayerPageProps) {
   // ── 재생 상태 ────────────────────────────────────────────────
+
+  // displayTime("2.58s", "1:02.58" 등)을 초 단위 숫자로 파싱
+  const parseDisplayTimeSec = (s: string): number | null => {
+    const simple = s.match(/^(\d+(?:\.\d+))s?$/);
+    if (simple) return parseFloat(simple[1]);
+    const colon = s.match(/^(\d+):(\d+(?:\.\d+)?)s?$/);
+    if (colon) return parseInt(colon[1]) * 60 + parseFloat(colon[2]);
+    return null;
+  };
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<StrokeFilter>("all");
+  const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
 
   // ── 사이드바 ────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -434,6 +449,13 @@ export function VideoPlayerPage({
   const [matchSummary, setMatchSummary] = useState<MatchSummary | null>(null);
   const [timelineEventsState, setTimelineEventsState] = useState<ApiTimelineEvent[]>([]);
 
+  // ── 점수 수정 ─────────────────────────────────────────────────
+  const [isEditingScore,  setIsEditingScore]  = useState(false);
+  const [editTopScore,    setEditTopScore]    = useState(0);
+  const [editBottomScore, setEditBottomScore] = useState(0);
+  const [isSavingScore,   setIsSavingScore]   = useState(false);
+  const [scoreSaveError,  setScoreSaveError]  = useState<string | null>(null);
+
   const analyzedVideoUrl = videoInfo?.skeletonVideoUrl ?? null;
   const originalVideoUrl = videoInfo?.videoUrl ?? null;
   const isAnalysisAvailable = !!analyzedVideoUrl;
@@ -453,7 +475,21 @@ export function VideoPlayerPage({
         if (!mounted) return;
         setVideoInfo(data.videoInfo);
         setMatchSummary(data.matchSummary);
-        setTimelineEventsState(data.timelineEvents || []);
+        setTimelineEventsState(
+          (data.timelineEvents || []).map((event) => {
+            const raw = event as any;
+            // timeSec: 백엔드가 내려주는 정밀 시간값 우선
+            if (raw.timeSec != null && typeof raw.timeSec === "number" && !Number.isInteger(raw.timeSec)) {
+              return { ...event, timestamp: raw.timeSec };
+            }
+            // displayTime 파싱으로 정수 timestamp 보정
+            if (event.displayTime && Number.isInteger(event.timestamp)) {
+              const precise = parseDisplayTimeSec(event.displayTime);
+              if (precise !== null) return { ...event, timestamp: precise };
+            }
+            return event;
+          }),
+        );
         if (data.videoInfo?.duration) setOriginalDuration(data.videoInfo.duration);
       })
       .catch((err) => {
@@ -725,8 +761,10 @@ export function VideoPlayerPage({
     return best ? best.id : null;
   }, [currentTime, filteredTimelineEvents, activeDuration]);
 
-  const scoreLeft  = matchSummary?.matchScore?.split(":")[0] ?? "-";
-  const scoreRight = matchSummary?.matchScore?.split(":")[1] ?? "-";
+  const scoreLeft      = matchSummary?.matchScore?.split(":")[0] ?? "-";
+  const scoreRight     = matchSummary?.matchScore?.split(":")[1] ?? "-";
+  const unknownRallies = matchSummary?.unknownRallies ?? 0;
+  const totalRallies   = matchSummary?.totalRallies   ?? 0;
 
   const progressPct =
     activeDuration > 0 ? Math.min((currentTime / activeDuration) * 100, 100) : 0;
@@ -742,6 +780,37 @@ export function VideoPlayerPage({
     });
     return counts;
   }, [timelineEventsState]);
+
+  // ── 점수 수정 핸들러 ─────────────────────────────────────────
+  const handleScoreEditOpen = () => {
+    setEditTopScore(Number(scoreLeft) || 0);
+    setEditBottomScore(Number(scoreRight) || 0);
+    setScoreSaveError(null);
+    setIsEditingScore(true);
+  };
+
+  const handleScoreCancel = () => {
+    setIsEditingScore(false);
+    setScoreSaveError(null);
+  };
+
+  const handleScoreSave = async () => {
+    setIsSavingScore(true);
+    setScoreSaveError(null);
+    try {
+      await updateMatchScore(videoId, editTopScore, editBottomScore);
+      setMatchSummary((prev) => ({
+        ...prev,
+        matchScore: `${editTopScore}:${editBottomScore}`,
+        unknownRallies: 0,
+      }));
+      setIsEditingScore(false);
+    } catch {
+      setScoreSaveError("저장에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSavingScore(false);
+    }
+  };
 
   // ─────────────────────────────────────────────────────────────
   // 렌더링
@@ -1166,20 +1235,122 @@ export function VideoPlayerPage({
 
                 {/* ── 매치 스코어 ── */}
                 <div className="px-6 pt-6 pb-5 border-b border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.12em] mb-4">매치 스코어</p>
-                  <div className="flex items-center justify-center gap-4">
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreLeft}</span>
-                      {/* ↓ Player A → Top Player */}
-                      <span className="text-[10px] text-gray-400 font-medium">Top Player</span>
-                    </div>
-                    <span className="text-xl font-light text-gray-200 pb-4">:</span>
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreRight}</span>
-                      {/* ↓ Player B → Bottom Player */}
-                      <span className="text-[10px] text-gray-400 font-medium">Bottom Player</span>
-                    </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.12em]">
+                      매치 스코어
+                    </p>
+                    {!isEditingScore && (
+                      <button
+                        onClick={handleScoreEditOpen}
+                        className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600
+                                   border border-gray-100 rounded-md px-2 py-1 transition-colors hover:bg-gray-50"
+                      >
+                        <Pencil className="size-3" />
+                        수정
+                      </button>
+                    )}
                   </div>
+
+                  {isEditingScore ? (
+                    <div>
+                      <div className="flex items-center justify-center gap-4">
+                        {(["top", "bottom"] as const).map((side) => {
+                          const val    = side === "top" ? editTopScore : editBottomScore;
+                          const setVal = side === "top" ? setEditTopScore : setEditBottomScore;
+                          const label  = side === "top" ? "Top Player" : "Bottom Player";
+                          return (
+                            <div key={side} className="flex flex-col items-center gap-1.5">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setVal((v) => Math.max(0, v - 1))}
+                                  className="w-5 h-5 flex items-center justify-center rounded text-gray-400
+                                             hover:text-gray-700 hover:bg-gray-100 text-sm transition-colors"
+                                >−</button>
+                                <input
+                                  type="number" min={0} max={30} value={val}
+                                  onChange={(e) => setVal(Math.max(0, Math.min(30, Number(e.target.value))))}
+                                  className="w-14 text-center text-3xl font-black text-gray-900 tabular-nums
+                                             border-b-2 border-blue-500 bg-transparent outline-none
+                                             [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                                <button
+                                  onClick={() => setVal((v) => Math.min(30, v + 1))}
+                                  className="w-5 h-5 flex items-center justify-center rounded text-gray-400
+                                             hover:text-gray-700 hover:bg-gray-100 text-sm transition-colors"
+                                >+</button>
+                              </div>
+                              <span className="text-[10px] text-gray-400 font-medium">{label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center justify-center gap-1 mt-4 mb-[-4px]">
+                        <span className="text-xl font-light text-gray-200">:</span>
+                      </div>
+                      {scoreSaveError && (
+                        <p className="text-center text-[11px] text-red-500 mt-2">{scoreSaveError}</p>
+                      )}
+                      <div className="flex gap-2 mt-3 justify-center">
+                        <button
+                          onClick={handleScoreCancel}
+                          disabled={isSavingScore}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-500
+                                     border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <X className="size-3" /> 취소
+                        </button>
+                        <button
+                          onClick={handleScoreSave}
+                          disabled={isSavingScore}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs text-white
+                                     bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          <Check className="size-3" />
+                          {isSavingScore ? "저장 중..." : "저장"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-center gap-4">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreLeft}</span>
+                          <span className="text-[10px] text-gray-400 font-medium">Top Player</span>
+                        </div>
+                        <span className="text-xl font-light text-gray-200 pb-4">:</span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreRight}</span>
+                          <span className="text-[10px] text-gray-400 font-medium">Bottom Player</span>
+                        </div>
+                      </div>
+
+                      {unknownRallies > 0 ? (
+                        <div className="flex items-center justify-center gap-1.5 mt-3">
+                          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50
+                                           border border-amber-200 rounded-full px-2.5 py-0.5 tabular-nums">
+                            +{unknownRallies}개 미확정
+                          </span>
+                          <div className="relative group">
+                            <Info className="size-3.5 text-gray-400 cursor-help" />
+                            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-52
+                                            bg-gray-900 text-white text-[11px] leading-relaxed
+                                            rounded-xl px-3 py-2.5 shadow-lg z-20
+                                            opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              인/아웃 판정이 불확실해 점수에 미반영된 랠리입니다.
+                              <span className="block mt-1 text-gray-400 tabular-nums">
+                                전체 {totalRallies}개 중 {unknownRallies}개 미확정
+                              </span>
+                              <span className="block mt-1 text-blue-300">'수정'으로 직접 조정 가능합니다.</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : totalRallies > 0 ? (
+                        <p className="text-center text-[10px] text-gray-400 mt-2 tabular-nums">
+                          전체 {totalRallies}개 랠리 확인 완료
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
 
                 {/* ── 타임라인 ── */}
@@ -1259,13 +1430,18 @@ export function VideoPlayerPage({
                           const cat = getStrokeCategory(event.type);
                           const style = getStrokeStyle(cat);
                           const eventKey = event.eventId ?? event.timestamp;
-                          const isActive = eventKey === activeEventId;
+                          // lastClickedIdx: 클릭한 이벤트가 currentTime 2s 이내이면 우선 적용
+                          // → 같은 정수 초에 여러 이벤트가 있어도 클릭한 항목만 활성화
+                          const isActive = lastClickedIdx === idx
+                            ? Math.abs(currentTime - event.timestamp) < 2
+                            : (lastClickedIdx === null && eventKey === activeEventId);
 
                           return (
                             <button
                               key={event.eventId ?? idx}
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setLastClickedIdx(idx);
                                 handleJumpTo(event.timestamp);
                               }}
                               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left group ${

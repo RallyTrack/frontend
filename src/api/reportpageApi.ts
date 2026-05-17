@@ -59,6 +59,8 @@ interface RawAnalysisResponse {
       opponentScore?: number;
       totalStrokeCount?: number;
       matchTime?: string;
+      unknownRallies?: number;
+      totalRallies?: number;
     };
     matchOutcome?: string;
     bottomPlayerScore?: number;
@@ -259,6 +261,8 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
     opponentScore:    data.summary?.opponentScore    ?? data.topPlayerScore    ?? 0,
     totalStrokeCount: data.summary?.totalStrokeCount ?? data.totalHits         ?? 0,
     matchTime:        data.summary?.matchTime        ?? "분석 완료",
+    unknownRallies:   data.summary?.unknownRallies   ?? 0,
+    totalRallies:     data.summary?.totalRallies     ?? 0,
   };
 
   const hitsData = data.hitsData;

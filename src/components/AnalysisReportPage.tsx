@@ -16,6 +16,8 @@ import {
   Users,
   X,
   Zap,
+  Pencil,
+  Check,
 } from "lucide-react";
 import {
   RadarChart,
@@ -42,6 +44,7 @@ import type {
 } from "../types/reportpageType";
 import { Footer } from "./ui/footer";
 import { fetchReport } from "../api/reportpageApi";
+import { updateMatchScore } from "../api/videoApi";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -464,9 +467,9 @@ function BadmintonHeatmapCourt({
           height="330%"
         >
           <feGaussianBlur stdDeviation="26" result="blur" />
-          </filter>
-          {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
-          <filter
+        </filter>
+        {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
+        <filter
           id={`heatblur-halo-${uid}`}
           x="-120%"
           y="-120%"
@@ -585,7 +588,7 @@ function BadmintonHeatmapCourt({
         />
       )}
 
-            {/* ── 히트맵 레이어: 헤일로(외곽 구름) + 코어(중심 색상) 이중 레이어 ── */}
+      {/* ── 히트맵 레이어: 헤일로(외곽 구름) + 코어(중심 색상) 이중 레이어 ── */}
       <g clipPath={`url(#court-clip-${uid})`}>
         {/* 1차: 넓은 헤일로 레이어 — 멀리 퍼지는 구름 효과 */}
         {zonePixels.map((zp, index) => {
@@ -625,7 +628,6 @@ function BadmintonHeatmapCourt({
           );
         })}
       </g>
-
 
       {/* ── 선택 포인트 마커 ── */}
       {selectedHeatmapPoint !== null && zonePixels[selectedHeatmapPoint] && (
@@ -891,25 +893,17 @@ function MarkdownBriefing({ content }: { content: string }) {
 // Grade system
 // ─────────────────────────────────────────────────────────────────────────────
 
-const GRADE_THRESHOLDS: {
+const GRADE_THRESHOLDS: Array<{
   min: number;
   grade: string;
   color: string;
   bg: string;
-}[] = [
-  { min: 97, grade: "A+", color: "#059669", bg: "#d1fae5" },
-  { min: 93, grade: "A", color: "#059669", bg: "#d1fae5" },
-  { min: 90, grade: "A−", color: "#059669", bg: "#d1fae5" },
-  { min: 87, grade: "B+", color: "#2563eb", bg: "#dbeafe" },
-  { min: 83, grade: "B", color: "#2563eb", bg: "#dbeafe" },
-  { min: 80, grade: "B−", color: "#2563eb", bg: "#dbeafe" },
-  { min: 77, grade: "C+", color: "#7c3aed", bg: "#ede9fe" },
-  { min: 73, grade: "C", color: "#7c3aed", bg: "#ede9fe" },
-  { min: 70, grade: "C−", color: "#7c3aed", bg: "#ede9fe" },
-  { min: 67, grade: "D+", color: "#d97706", bg: "#fef3c7" },
-  { min: 63, grade: "D", color: "#d97706", bg: "#fef3c7" },
-  { min: 60, grade: "D−", color: "#d97706", bg: "#fef3c7" },
-  { min: 0, grade: "E", color: "#dc2626", bg: "#fee2e2" },
+}> = [
+  { min: 85, grade: "S", color: "#0ea5e9", bg: "#e0f2fe" },
+  { min: 70, grade: "A", color: "#22c55e", bg: "#dcfce7" },
+  { min: 50, grade: "B", color: "#f59e0b", bg: "#fef3c7" },
+  { min: 30, grade: "C", color: "#8b5cf6", bg: "#ede9fe" },
+  { min: 0, grade: "D", color: "#ef4444", bg: "#fee2e2" },
 ];
 
 function scoreToGrade(value: number): {
@@ -920,24 +914,19 @@ function scoreToGrade(value: number): {
   for (const t of GRADE_THRESHOLDS) {
     if (value >= t.min) return { grade: t.grade, color: t.color, bg: t.bg };
   }
-  return { grade: "E", color: "#dc2626", bg: "#fee2e2" };
+  return { grade: "D", color: "#ef4444", bg: "#fee2e2" };
 }
 
-function scoreToBarPct(value: number): number {
-  return Math.min(Math.max(value, 0), 100);
-}
+const ABILITY_DESCRIPTIONS: Record<string, string> = {
+  공격성: "상대를 압박하고 주도권을 가져가는 성향",
+  안정성: "실수 없이 경기를 안정적으로 풀어가는 능력",
+  랠리력: "랠리를 길게 유지하며 버티는 지속력",
+  기동력: "홈포지션으로의 빠른 리커버리 능력",
+  수비력: "빠른 샷을 정확하게 받아내는 대처 능력",
+};
 
-function AbilityGradeRow({
-  label,
-  value,
-  accentColor,
-}: {
-  label: string;
-  value: number;
-  accentColor: string;
-}) {
+function AbilityGradeRow({ label, value }: { label: string; value: number }) {
   const { grade, color, bg } = scoreToGrade(value);
-  const pct = scoreToBarPct(value);
   return (
     <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors">
       <span
@@ -946,35 +935,20 @@ function AbilityGradeRow({
       >
         {grade}
       </span>
-      <span className="shrink-0 w-12 text-xs font-semibold text-gray-600">
+      <span className="shrink-0 w-14 text-xs font-semibold text-gray-600">
         {label}
       </span>
-      <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-        <div
-          className="h-1.5 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: accentColor }}
-        />
-      </div>
-      <span className="shrink-0 w-8 text-right text-[10px] tabular-nums text-gray-400 font-medium">
-        {value}
+      <span className="flex-1 text-xs text-gray-600 leading-snug">
+        {ABILITY_DESCRIPTIONS[label] ?? ""}
       </span>
     </div>
   );
 }
 
-function AbilityGradeCard({
-  label,
-  value,
-  accentColor,
-}: {
-  label: string;
-  value: number;
-  accentColor: string;
-}) {
+function AbilityGradeCard({ label, value }: { label: string; value: number }) {
   const { grade, color, bg } = scoreToGrade(value);
-  const pct = scoreToBarPct(value);
   return (
-    <div className="flex flex-col gap-2 p-3 rounded-xl bg-gray-50 border border-gray-100">
+    <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-gray-50 border border-gray-100">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-600">{label}</span>
         <span
@@ -984,14 +958,31 @@ function AbilityGradeCard({
           {grade}
         </span>
       </div>
-      <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
-        <div
-          className="h-1.5 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: accentColor }}
-        />
-      </div>
-      <span className="text-[10px] tabular-nums text-gray-400 self-end">
-        {value} / 100
+      <p className="text-xs text-gray-600 leading-snug">
+        {ABILITY_DESCRIPTIONS[label] ?? ""}
+      </p>
+    </div>
+  );
+}
+
+function RadarTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: { name: string } }>;
+}) {
+  if (!active || !payload?.length) return null;
+  const { value, payload: { name } } = payload[0];
+  const { grade, color, bg } = scoreToGrade(value);
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-lg">
+      <p className="text-xs font-semibold text-gray-600 mb-1">{name}</p>
+      <span
+        className="text-xs font-black px-2 py-0.5 rounded-md"
+        style={{ color, background: bg }}
+      >
+        {grade}
       </span>
     </div>
   );
@@ -1020,13 +1011,20 @@ export function AnalysisReportPage({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reportNotReady, setReportNotReady] = useState(false); // 404 → 분석 준비 중
 
-
   const [briefings, setBriefings] = useState<Record<PlayerKey, string>>({
     top: "",
     bottom: "",
   });
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
+
+  // 점수 수정
+  const [rallyDetailOpen,    setRallyDetailOpen]    = useState(false);
+  const [isEditingScore,     setIsEditingScore]     = useState(false);
+  const [editMyScore,        setEditMyScore]        = useState(0);
+  const [editOpponentScore,  setEditOpponentScore]  = useState(0);
+  const [isSavingScore,      setIsSavingScore]      = useState(false);
+  const [scoreSaveError,     setScoreSaveError]     = useState<string | null>(null);
 
   // 사이드바
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -1051,6 +1049,54 @@ export function AnalysisReportPage({
     }
   };
 
+  const handleScoreEditOpen = () => {
+    if (!report) return;
+    setEditMyScore(report.data.summary.myScore ?? 0);
+    setEditOpponentScore(report.data.summary.opponentScore ?? 0);
+    setScoreSaveError(null);
+    setIsEditingScore(true);
+  };
+
+  const handleScoreCancel = () => {
+    setIsEditingScore(false);
+    setScoreSaveError(null);
+  };
+
+  const handleScoreSave = async () => {
+    if (!report) return;
+    setIsSavingScore(true);
+    setScoreSaveError(null);
+    try {
+      await updateMatchScore(videoId, editOpponentScore, editMyScore);
+      const newOutcome =
+        editOpponentScore > editMyScore ? "TOP_WIN"
+        : editMyScore > editOpponentScore ? "BOTTOM_WIN"
+        : "DRAW";
+      setReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              data: {
+                ...prev.data,
+                summary: {
+                  ...prev.data.summary,
+                  myScore: editMyScore,
+                  opponentScore: editOpponentScore,
+                  matchOutcome: newOutcome,
+                  unknownRallies: 0,
+                },
+              },
+            }
+          : prev,
+      );
+      setIsEditingScore(false);
+    } catch {
+      setScoreSaveError("저장에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSavingScore(false);
+    }
+  };
+
   // ── Fetch report ──────────────────────────────────────────────────────────
   useEffect(() => {
     let alive = true;
@@ -1062,7 +1108,7 @@ export function AnalysisReportPage({
         const data = await fetchReport(videoId);
         if (!alive) return;
         setReport(data);
-            } catch (e: any) {
+      } catch (e: any) {
         if (!alive) return;
         // 404: 분석 완료 전 상태 — 일반 오류가 아닌 "준비 중" UI 표시
         const status = (e as any)?.status ?? 0;
@@ -1102,10 +1148,22 @@ export function AnalysisReportPage({
         const coaching = playerData.aiCoaching;
         const playerLabel =
           activePlayer === "bottom" ? "Bottom Player" : "Top Player";
+        const abilityGrades = {
+          aggression: scoreToGrade(ability.aggression).grade,
+          rally: scoreToGrade(ability.rally).grade,
+          defense: scoreToGrade(ability.defense).grade,
+          mobility: scoreToGrade(ability.mobility).grade,
+          consistency: scoreToGrade(ability.consistency).grade,
+        };
         // 현재 대부분의 타격은 others로 집계됨 (AI stroke 분류 미완성)
         const playerStrokeTotal =
-          (stroke.smash ?? 0) + (stroke.clear ?? 0) + (stroke.drop ?? 0) +
-          (stroke.drive ?? 0) + (stroke.serve ?? 0) + (stroke.net ?? 0) + (stroke.others ?? 0);
+          (stroke.smash ?? 0) +
+          (stroke.clear ?? 0) +
+          (stroke.drop ?? 0) +
+          (stroke.drive ?? 0) +
+          (stroke.serve ?? 0) +
+          (stroke.net ?? 0) +
+          (stroke.others ?? 0);
 
         const prompt = `
 당신은 전문 배드민턴 코치입니다.
@@ -1120,12 +1178,12 @@ export function AnalysisReportPage({
 - 개인 스트로크 합계: ${playerStrokeTotal}회
 - Smash: ${stroke.smash}회, Clear: ${stroke.clear}회, Drop: ${stroke.drop}회, Drive: ${stroke.drive}회, Serve: ${stroke.serve}회, Net: ${stroke.net}회, Others(미분류): ${stroke.others}회
 
-[${playerLabel} 능력치 (0~100점, 높을수록 우수)]
-- 공격성 ${ability.aggression}점: 전체 타격 중 스매시 비율
-- 랠리 유지력 ${ability.rally}점: 참여 랠리의 평균 지속 시간
-- 방어력 ${ability.defense}점: 수비 능력
-- 이동성 ${ability.mobility}점: 경기 중 선수의 코트 이동 능력
-- 일관성 ${ability.consistency}점: 다양한 상황에서의 성능 일관성
+[${playerLabel} 능력치 등급 (S > A > B > C > D)]
+- 공격성 ${abilityGrades.aggression}등급: 전체 타격 중 스매시 비율
+- 랠리력 ${abilityGrades.rally}등급: 랠리 지속력 및 지구력
+- 수비력 ${abilityGrades.defense}등급: 빠른 반응 속도
+- 기동력 ${abilityGrades.mobility}등급: 코트 커버리지
+- 안정성 ${abilityGrades.consistency}등급: 실책 없이 안정적으로 플레이하는 능력
 
 [기존 코치 피드백]
 ${coaching?.feedbackText ?? "(없음)"}
@@ -1191,15 +1249,14 @@ ${coaching?.feedbackText ?? "(없음)"}
       { name: "기타", count: playerData.strokeTypes.others, color: "#94a3b8" },
     ];
     const am = playerData.abilityMetrics;
-    const clamp = (v: unknown) => Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
+    const clamp = (v: unknown) =>
+      Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
     const abilityData = [
-      { name: "공격성",         value: clamp(am.aggression) },
-      { name: "랠리력",          value: clamp(am.rally) },
-      { name: "수비력",          value: clamp(am.defense) },
-      { name: "기동력",          value: clamp(am.mobility) },
-      // 안정성: consistency 직접 사용
-      
-      { name: "안정성",          value: clamp(am.consistency) },
+      { name: "공격성", value: clamp(am.aggression) },
+      { name: "안정성", value: clamp(am.consistency) },
+      { name: "랠리력", value: clamp(am.rally) },
+      { name: "기동력", value: clamp(am.mobility) },
+      { name: "수비력", value: clamp(am.defense) },
     ];
     const accentColor = activePlayer === "bottom" ? "#3b82f6" : "#6366f1";
     return { summary, heatmapZones, strokeData, abilityData, accentColor };
@@ -1300,7 +1357,8 @@ ${coaching?.feedbackText ?? "(없음)"}
               분석 리포트 준비 중
             </h2>
             <p className="text-sm text-gray-500 leading-relaxed mb-6">
-              AI가 경기 영상을 분석하고 있습니다.<br />
+              AI가 경기 영상을 분석하고 있습니다.
+              <br />
               분석이 완료되면 리포트가 자동으로 생성됩니다.
             </p>
             <div className="flex items-center justify-center gap-1.5 mb-8">
@@ -1586,48 +1644,221 @@ ${coaching?.feedbackText ?? "(없음)"}
         <main className="flex-1 overflow-y-auto" ref={mainScrollRef}>
           <div className="max-w-5xl mx-auto px-6 py-10">
             <div className="space-y-6">
-              {/* ── 1. Match Summary ── */}
+              {/* ── Match Summary ── */}
               <section
                 id="section-summary"
-                className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm scroll-mt-6"
+                className="rounded-2xl border border-gray-100 bg-white shadow-sm scroll-mt-6 overflow-hidden"
               >
-                <div className="flex items-center gap-2 mb-5">
-                  <Users className="size-4 text-gray-500" />
-                  <h2 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
-                    경기 결과 요약
-                  </h2>
+                {/* 헤더 */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
+                  <div className="flex items-center gap-2">
+                    <Users className="size-4 text-gray-400" />
+                    <h2 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
+                      경기 결과 요약
+                    </h2>
+                  </div>
+                  {!isEditingScore && (
+                    <button
+                      onClick={handleScoreEditOpen}
+                      className="flex items-center gap-1 text-xs text-gray-400
+                                 border border-gray-100 rounded-lg px-2.5 py-1.5
+                                 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+                    >
+                      <Pencil className="size-3" />
+                      점수 수정
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-center gap-6 mb-6 py-4 rounded-xl bg-gray-50">
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">
-                      Bottom
-                    </span>
-                    <span className="text-5xl font-black text-gray-900 tabular-nums">
-                      {summary.myScore}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-2xl font-light text-gray-300 mt-1">
-                      VS
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider">
-                      Top
-                    </span>
-                    <span className="text-5xl font-black text-gray-900 tabular-nums">
-                      {summary.opponentScore}
-                    </span>
+                {/* 스코어 히어로 */}
+                <div className="px-6 py-6">
+                  {isEditingScore ? (
+                    /* ── 수정 모드 ── */
+                    <div className="flex flex-col items-center gap-5">
+                      <div className="flex items-center gap-8">
+                        {(
+                          [
+                            { label: "Top",    val: editOpponentScore, setVal: setEditOpponentScore, color: "text-green-600" },
+                            { label: "Bottom", val: editMyScore,       setVal: setEditMyScore,       color: "text-blue-500"  },
+                          ] as const
+                        ).map(({ label, val, setVal, color }) => (
+                          <div key={label} className="flex flex-col items-center gap-2">
+                            <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>
+                              {label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setVal((v: number) => Math.max(0, v - 1))}
+                                className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500
+                                           hover:bg-gray-100 flex items-center justify-center"
+                              >−</button>
+                              <input
+                                type="number" min={0} max={30} value={val}
+                                onChange={(e) =>
+                                  setVal(Math.max(0, Math.min(30, Number(e.target.value))))
+                                }
+                                className="w-16 text-center text-4xl font-black tabular-nums
+                                           border-b-2 border-blue-500 bg-transparent outline-none
+                                           [appearance:textfield]
+                                           [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                              <button
+                                onClick={() => setVal((v: number) => Math.min(30, v + 1))}
+                                className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500
+                                           hover:bg-gray-100 flex items-center justify-center"
+                              >+</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {scoreSaveError && (
+                        <p className="text-xs text-red-500">{scoreSaveError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleScoreCancel}
+                          className="flex items-center gap-1 px-4 py-2 text-sm text-gray-500
+                                     border border-gray-200 rounded-lg hover:bg-gray-50"
+                        >
+                          <X className="size-3.5" />취소
+                        </button>
+                        <button
+                          onClick={handleScoreSave}
+                          disabled={isSavingScore}
+                          className="flex items-center gap-1 px-4 py-2 text-sm text-white
+                                     bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          <Check className="size-3.5" />
+                          {isSavingScore ? "저장 중..." : "저장"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── 표시 모드 ── */
+                    <>
+                      <div className="flex items-center justify-center gap-8 py-2">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs font-bold text-green-600 uppercase tracking-wider">
+                            Top
+                          </span>
+                          <span className="text-5xl font-black text-gray-900 tabular-nums">
+                            {summary.opponentScore}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-2xl font-light text-gray-300">:</span>
+                          {summary.matchOutcome && (
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full
+                                ${(summary.matchOutcome === "TOP_WIN" || summary.matchOutcome === "LOSE")
+                                  ? "bg-green-50 text-green-700"
+                                  : (summary.matchOutcome === "BOTTOM_WIN" || summary.matchOutcome === "WIN")
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "bg-gray-50 text-gray-500"}`}
+                            >
+                              {(summary.matchOutcome === "TOP_WIN" || summary.matchOutcome === "LOSE")
+                                ? "Top 승"
+                                : (summary.matchOutcome === "BOTTOM_WIN" || summary.matchOutcome === "WIN")
+                                ? "Bottom 승"
+                                : "무승부"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">
+                            Bottom
+                          </span>
+                          <span className="text-5xl font-black text-gray-900 tabular-nums">
+                            {summary.myScore}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 미확정 뱃지 + 랠리결과 토글 */}
+                      {(summary.unknownRallies ?? 0) > 0 && (
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          <div className="relative group">
+                            <span className="text-[11px] font-semibold text-amber-700
+                                             bg-amber-50 border border-amber-200
+                                             rounded-full px-2.5 py-0.5 tabular-nums cursor-default">
+                              +{summary.unknownRallies}개 미확정
+                            </span>
+                            <div className="absolute bottom-7 left-1/2 -translate-x-1/2 w-56
+                                            bg-gray-900 text-white text-[11px] leading-relaxed
+                                            rounded-xl px-3 py-2.5 shadow-lg z-20
+                                            opacity-0 group-hover:opacity-100 transition-opacity
+                                            pointer-events-none">
+                              인/아웃 판정이 불확실해 점수에 반영되지 않은 랠리입니다.
+                              <span className="block mt-1 text-gray-400 tabular-nums">
+                                전체 {summary.totalRallies ?? "?"}개 중{" "}
+                                {summary.unknownRallies}개 미확정
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setRallyDetailOpen((v) => !v)}
+                            className="flex items-center gap-1 text-[11px] text-gray-500
+                                       hover:text-gray-700 px-2 py-0.5 rounded-md
+                                       hover:bg-gray-100 transition-colors"
+                          >
+                            랠리 결과
+                            <ChevronDown
+                              className={`size-3 transition-transform duration-200
+                                ${rallyDetailOpen ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* 인라인 랠리 결과 아코디언 */}
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out
+                    ${rallyDetailOpen ? "max-h-48" : "max-h-0"}`}
+                >
+                  <div className="border-t border-gray-100 px-6 py-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                        랠리별 판정 결과
+                      </span>
+                      <span className="text-[10px] text-gray-400 tabular-nums">
+                        총 {summary.totalRallies ?? 0}랠리
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 px-3
+                                    bg-gray-50 rounded-xl text-[11px] text-gray-500">
+                      <span>
+                        확인됨{" "}
+                        <span className="font-bold text-gray-700 tabular-nums">
+                          {(summary.totalRallies ?? 0) - (summary.unknownRallies ?? 0)}
+                        </span>
+                        개
+                      </span>
+                      <span className="w-px h-3 bg-gray-200" />
+                      <span>
+                        미확정{" "}
+                        <span className="font-bold text-amber-700 tabular-nums">
+                          {summary.unknownRallies ?? 0}
+                        </span>
+                        개
+                      </span>
+                      <span className="w-px h-3 bg-gray-200" />
+                      <span className="text-gray-400">
+                        개별 판정 상세는 추후 지원 예정
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* 하단 통계 */}
+                <div className="grid grid-cols-2 gap-3 px-6 pb-5 border-t border-gray-50 pt-4">
                   <div className="flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <Zap className="size-4 text-purple-400" />
+                    <Zap className="size-4 text-purple-400 shrink-0" />
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                        양측 합산 스트로크
+                        총 스트로크
                       </p>
                       <p className="text-lg font-black text-purple-600">
                         {summary.totalStrokeCount}회
@@ -1635,7 +1866,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <Clock className="size-4 text-orange-400" />
+                    <Clock className="size-4 text-orange-400 shrink-0" />
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
                         경기 시간
@@ -1780,13 +2011,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                             fill={accentColor}
                             fillOpacity={0.35}
                           />
-                          <Tooltip
-                            contentStyle={{
-                              borderRadius: 10,
-                              border: "1px solid #e5e7eb",
-                              fontSize: 12,
-                            }}
-                          />
+                          <Tooltip content={<RadarTooltip />} />
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1796,7 +2021,6 @@ ${coaching?.feedbackText ?? "(없음)"}
                           key={a.name}
                           label={a.name}
                           value={a.value}
-                          accentColor={accentColor}
                         />
                       ))}
                     </div>
@@ -1948,18 +2172,13 @@ ${coaching?.feedbackText ?? "(없음)"}
                 fill={accentColor}
                 fillOpacity={0.4}
               />
-              <Tooltip contentStyle={{ borderRadius: 10 }} />
+              <Tooltip content={<RadarTooltip />} />
             </RadarChart>
           </ResponsiveContainer>
         </div>
         <div className="grid grid-cols-1 gap-2">
           {abilityData.map((a) => (
-            <AbilityGradeCard
-              key={a.name}
-              label={a.name}
-              value={a.value}
-              accentColor={accentColor}
-            />
+            <AbilityGradeCard key={a.name} label={a.name} value={a.value} />
           ))}
         </div>
       </Modal>
