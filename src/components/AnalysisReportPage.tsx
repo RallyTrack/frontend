@@ -730,58 +730,64 @@ function BadmintonHeatmapCourt({
         </p>
         <div className="space-y-2.5">
           {(() => {
-            // zones Y좌표는 0~100 범위
-            // top player:    y 0~50   → net y<=17.5, mid 17.5~35, back 35~50
-            // bottom player: y 50~100 → net y>=82.5, back 65~82.5, mid 50~65
+  // ── 구역 경계: SVG 상수에서 직접 파생 (하드코딩 금지) ──
+  // BT  = OT + round(OH * 0.0567)  → y%  ≈  5.67  (백 바운더리 라인)
+  // SST = NY  - round(OH * 0.1478) → y%  ≈ 35.22  (숏 서비스 라인 top)
+  // NY  = OT  + OH / 2             → y%  = 50      (네트)
+  // SSB = NY  + round(OH * 0.1478) → y%  ≈ 64.78  (숏 서비스 라인 bottom)
+  // BB  = OB  - round(OH * 0.0567) → y%  ≈ 94.33  (백 바운더리 라인)
+  const BT_PCT  = (BI / OH) * 100;           //  ≈  5.67
+  const SST_PCT = ((OH / 2 - SSO) / OH) * 100; // ≈ 35.22
+  const SSB_PCT = ((OH / 2 + SSO) / OH) * 100; // ≈ 64.78
+  const BB_PCT  = ((OH - BI) / OH) * 100;    //  ≈ 94.33
 
-            let net = 0, mid = 0, back = 0;
-            zones.forEach((z) => {
-              const y = z.y;
-              if (isBottom) {
-                if (y >= 82.5)      net++;
-                else if (y >= 65)   back++;
-                else                mid++;
-              } else {
-                if (y <= 17.5)      net++;
-                else if (y <= 35)   mid++;
-                else                back++;
-              }
-            });
+  let net = 0, mid = 0, back = 0;
+  zones.forEach((z) => {
+    const y = z.y;
+    if (isBottom) {
+  // y: 50(네트) → 100(백)
+  if (y <= SSB_PCT)      net++;   // 50 ~ 64.78
+  else if (y <= BB_PCT)  mid++;   // 64.78 ~ 94.33
+  else                   back++;  // 94.33 ~ 100
+} else {
+  // y: 0(백) → 50(네트)
+  if (y >= SST_PCT)      net++;   // 35.22 ~ 50
+  else if (y >= BT_PCT)  mid++;   // 5.67 ~ 35.22
+  else                   back++;  // 0 ~ 5.67
+}
+  });
 
-            const total = zones.length || 1;
-            const netPct  = Math.round((net  / total) * 100);
-            const midPct  = Math.round((mid  / total) * 100);
-            // 반올림 오차 보정 — 합이 100이 되도록
-            const backPct = Math.max(0, 100 - netPct - midPct);
+  const total   = zones.length || 1;
+  const netPct  = Math.round((net  / total) * 100);
+  const midPct  = Math.round((mid  / total) * 100);
+  const backPct = Math.max(0, 100 - netPct - midPct);
 
-            const rows = [
-              { label: "네트 앞",    pct: netPct,  color: "#ef4444" },
-              { label: "미드 코트",  pct: midPct,  color: "#f97316" },
-              { label: "백 바운더리", pct: backPct, color: "#3b82f6" },
-            ];
+  const rows = [
+    { label: "네트 앞",     pct: netPct,  color: "#ef4444" },
+    { label: "미드 코트",   pct: midPct,  color: "#f97316" },
+    { label: "백 바운더리", pct: backPct, color: "#3b82f6" },
+  ];
 
-            return rows.map(({ label, pct, color }) => (
-              <div key={label}>
-                <div className="flex justify-between mb-1">
-                  <span className="text-[11px] font-medium text-gray-500">
-                    {label}
-                  </span>
-                  <span
-                    className="text-[11px] font-bold tabular-nums"
-                    style={{ color }}
-                  >
-                    {zones.length === 0 ? "—" : `${pct}%`}
-                  </span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-                  <div
-                    className="h-1.5 rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%`, backgroundColor: color }}
-                  />
-                </div>
-              </div>
-            ));
-          })()}
+  return rows.map(({ label, pct, color }) => (
+    <div key={label}>
+      <div className="flex justify-between mb-1">
+        <span className="text-[11px] font-medium text-gray-500">{label}</span>
+        <span className="text-[11px] font-bold tabular-nums" style={{ color }}>
+          {zones.length === 0 ? "—" : `${pct}%`}
+        </span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+        <div
+          className="h-1.5 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+    </div>
+  ));
+})()}
+ 
+
+
         </div>
       </div>
       <div
