@@ -730,21 +730,21 @@ function BadmintonHeatmapCourt({
         </p>
         <div className="space-y-2.5">
           {(() => {
-            // zones Y좌표는 0.0~1.0 범위 (reportpageApi.ts 에서 정규화 완료)
-            // top player:    y 0.0~0.5  → net y<=0.175, mid 0.175~0.35, back 0.35~0.5
-            // bottom player: y 0.5~1.0  → net y>=0.825, back 0.65~0.825, mid 0.5~0.65
+            // zones Y좌표는 0~100 범위
+            // top player:    y 0~50   → net y<=17.5, mid 17.5~35, back 35~50
+            // bottom player: y 50~100 → net y>=82.5, back 65~82.5, mid 50~65
 
             let net = 0, mid = 0, back = 0;
             zones.forEach((z) => {
               const y = z.y;
               if (isBottom) {
-                if (y >= 0.825)      net++;
-                else if (y >= 0.65)  back++;
-                else                 mid++;
+                if (y >= 82.5)      net++;
+                else if (y >= 65)   back++;
+                else                mid++;
               } else {
-                if (y <= 0.175)      net++;
-                else if (y <= 0.35)  mid++;
-                else                 back++;
+                if (y <= 17.5)      net++;
+                else if (y <= 35)   mid++;
+                else                back++;
               }
             });
 
