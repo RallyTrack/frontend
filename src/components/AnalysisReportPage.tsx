@@ -16,6 +16,8 @@ import {
   Users,
   X,
   Zap,
+  Pencil,
+  Check,
 } from "lucide-react";
 import {
   RadarChart,
@@ -42,6 +44,7 @@ import type {
 } from "../types/reportpageType";
 import { Footer } from "./ui/footer";
 import { fetchReport } from "../api/reportpageApi";
+import { updateMatchScore } from "../api/videoApi";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -985,6 +988,14 @@ export function AnalysisReportPage({
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
 
+  // 점수 수정
+  const [rallyDetailOpen,    setRallyDetailOpen]    = useState(false);
+  const [isEditingScore,     setIsEditingScore]     = useState(false);
+  const [editMyScore,        setEditMyScore]        = useState(0);
+  const [editOpponentScore,  setEditOpponentScore]  = useState(0);
+  const [isSavingScore,      setIsSavingScore]      = useState(false);
+  const [scoreSaveError,     setScoreSaveError]     = useState<string | null>(null);
+
   // 사이드바
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -1005,6 +1016,54 @@ export function AnalysisReportPage({
     const el = document.getElementById(`section-${id}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handleScoreEditOpen = () => {
+    if (!report) return;
+    setEditMyScore(report.data.summary.myScore ?? 0);
+    setEditOpponentScore(report.data.summary.opponentScore ?? 0);
+    setScoreSaveError(null);
+    setIsEditingScore(true);
+  };
+
+  const handleScoreCancel = () => {
+    setIsEditingScore(false);
+    setScoreSaveError(null);
+  };
+
+  const handleScoreSave = async () => {
+    if (!report) return;
+    setIsSavingScore(true);
+    setScoreSaveError(null);
+    try {
+      await updateMatchScore(videoId, editOpponentScore, editMyScore);
+      const newOutcome =
+        editOpponentScore > editMyScore ? "TOP_WIN"
+        : editMyScore > editOpponentScore ? "BOTTOM_WIN"
+        : "DRAW";
+      setReport((prev) =>
+        prev
+          ? {
+              ...prev,
+              data: {
+                ...prev.data,
+                summary: {
+                  ...prev.data.summary,
+                  myScore: editMyScore,
+                  opponentScore: editOpponentScore,
+                  matchOutcome: newOutcome,
+                  unknownRallies: 0,
+                },
+              },
+            }
+          : prev,
+      );
+      setIsEditingScore(false);
+    } catch {
+      setScoreSaveError("저장에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsSavingScore(false);
     }
   };
 
@@ -1555,48 +1614,221 @@ ${coaching?.feedbackText ?? "(없음)"}
         <main className="flex-1 overflow-y-auto" ref={mainScrollRef}>
           <div className="max-w-5xl mx-auto px-6 py-10">
             <div className="space-y-6">
-              {/* ── 1. Match Summary ── */}
+              {/* ── Match Summary ── */}
               <section
                 id="section-summary"
-                className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm scroll-mt-6"
+                className="rounded-2xl border border-gray-100 bg-white shadow-sm scroll-mt-6 overflow-hidden"
               >
-                <div className="flex items-center gap-2 mb-5">
-                  <Users className="size-4 text-gray-500" />
-                  <h2 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
-                    경기 결과 요약
-                  </h2>
+                {/* 헤더 */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
+                  <div className="flex items-center gap-2">
+                    <Users className="size-4 text-gray-400" />
+                    <h2 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
+                      경기 결과 요약
+                    </h2>
+                  </div>
+                  {!isEditingScore && (
+                    <button
+                      onClick={handleScoreEditOpen}
+                      className="flex items-center gap-1 text-xs text-gray-400
+                                 border border-gray-100 rounded-lg px-2.5 py-1.5
+                                 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+                    >
+                      <Pencil className="size-3" />
+                      점수 수정
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-center gap-6 mb-6 py-4 rounded-xl bg-gray-50">
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">
-                      Bottom
-                    </span>
-                    <span className="text-5xl font-black text-gray-900 tabular-nums">
-                      {summary.myScore}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-2xl font-light text-gray-300 mt-1">
-                      VS
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider">
-                      Top
-                    </span>
-                    <span className="text-5xl font-black text-gray-900 tabular-nums">
-                      {summary.opponentScore}
-                    </span>
+                {/* 스코어 히어로 */}
+                <div className="px-6 py-6">
+                  {isEditingScore ? (
+                    /* ── 수정 모드 ── */
+                    <div className="flex flex-col items-center gap-5">
+                      <div className="flex items-center gap-8">
+                        {(
+                          [
+                            { label: "Top",    val: editOpponentScore, setVal: setEditOpponentScore, color: "text-green-600" },
+                            { label: "Bottom", val: editMyScore,       setVal: setEditMyScore,       color: "text-blue-500"  },
+                          ] as const
+                        ).map(({ label, val, setVal, color }) => (
+                          <div key={label} className="flex flex-col items-center gap-2">
+                            <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>
+                              {label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setVal((v: number) => Math.max(0, v - 1))}
+                                className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500
+                                           hover:bg-gray-100 flex items-center justify-center"
+                              >−</button>
+                              <input
+                                type="number" min={0} max={30} value={val}
+                                onChange={(e) =>
+                                  setVal(Math.max(0, Math.min(30, Number(e.target.value))))
+                                }
+                                className="w-16 text-center text-4xl font-black tabular-nums
+                                           border-b-2 border-blue-500 bg-transparent outline-none
+                                           [appearance:textfield]
+                                           [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                              <button
+                                onClick={() => setVal((v: number) => Math.min(30, v + 1))}
+                                className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500
+                                           hover:bg-gray-100 flex items-center justify-center"
+                              >+</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {scoreSaveError && (
+                        <p className="text-xs text-red-500">{scoreSaveError}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleScoreCancel}
+                          className="flex items-center gap-1 px-4 py-2 text-sm text-gray-500
+                                     border border-gray-200 rounded-lg hover:bg-gray-50"
+                        >
+                          <X className="size-3.5" />취소
+                        </button>
+                        <button
+                          onClick={handleScoreSave}
+                          disabled={isSavingScore}
+                          className="flex items-center gap-1 px-4 py-2 text-sm text-white
+                                     bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          <Check className="size-3.5" />
+                          {isSavingScore ? "저장 중..." : "저장"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── 표시 모드 ── */
+                    <>
+                      <div className="flex items-center justify-center gap-8 py-2">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs font-bold text-green-600 uppercase tracking-wider">
+                            Top
+                          </span>
+                          <span className="text-5xl font-black text-gray-900 tabular-nums">
+                            {summary.opponentScore}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-2xl font-light text-gray-300">:</span>
+                          {summary.matchOutcome && (
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full
+                                ${(summary.matchOutcome === "TOP_WIN" || summary.matchOutcome === "LOSE")
+                                  ? "bg-green-50 text-green-700"
+                                  : (summary.matchOutcome === "BOTTOM_WIN" || summary.matchOutcome === "WIN")
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "bg-gray-50 text-gray-500"}`}
+                            >
+                              {(summary.matchOutcome === "TOP_WIN" || summary.matchOutcome === "LOSE")
+                                ? "Top 승"
+                                : (summary.matchOutcome === "BOTTOM_WIN" || summary.matchOutcome === "WIN")
+                                ? "Bottom 승"
+                                : "무승부"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">
+                            Bottom
+                          </span>
+                          <span className="text-5xl font-black text-gray-900 tabular-nums">
+                            {summary.myScore}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 미확정 뱃지 + 랠리결과 토글 */}
+                      {(summary.unknownRallies ?? 0) > 0 && (
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          <div className="relative group">
+                            <span className="text-[11px] font-semibold text-amber-700
+                                             bg-amber-50 border border-amber-200
+                                             rounded-full px-2.5 py-0.5 tabular-nums cursor-default">
+                              +{summary.unknownRallies}개 미확정
+                            </span>
+                            <div className="absolute bottom-7 left-1/2 -translate-x-1/2 w-56
+                                            bg-gray-900 text-white text-[11px] leading-relaxed
+                                            rounded-xl px-3 py-2.5 shadow-lg z-20
+                                            opacity-0 group-hover:opacity-100 transition-opacity
+                                            pointer-events-none">
+                              인/아웃 판정이 불확실해 점수에 반영되지 않은 랠리입니다.
+                              <span className="block mt-1 text-gray-400 tabular-nums">
+                                전체 {summary.totalRallies ?? "?"}개 중{" "}
+                                {summary.unknownRallies}개 미확정
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setRallyDetailOpen((v) => !v)}
+                            className="flex items-center gap-1 text-[11px] text-gray-500
+                                       hover:text-gray-700 px-2 py-0.5 rounded-md
+                                       hover:bg-gray-100 transition-colors"
+                          >
+                            랠리 결과
+                            <ChevronDown
+                              className={`size-3 transition-transform duration-200
+                                ${rallyDetailOpen ? "rotate-180" : ""}`}
+                            />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* 인라인 랠리 결과 아코디언 */}
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out
+                    ${rallyDetailOpen ? "max-h-48" : "max-h-0"}`}
+                >
+                  <div className="border-t border-gray-100 px-6 py-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                        랠리별 판정 결과
+                      </span>
+                      <span className="text-[10px] text-gray-400 tabular-nums">
+                        총 {summary.totalRallies ?? 0}랠리
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 px-3
+                                    bg-gray-50 rounded-xl text-[11px] text-gray-500">
+                      <span>
+                        확인됨{" "}
+                        <span className="font-bold text-gray-700 tabular-nums">
+                          {(summary.totalRallies ?? 0) - (summary.unknownRallies ?? 0)}
+                        </span>
+                        개
+                      </span>
+                      <span className="w-px h-3 bg-gray-200" />
+                      <span>
+                        미확정{" "}
+                        <span className="font-bold text-amber-700 tabular-nums">
+                          {summary.unknownRallies ?? 0}
+                        </span>
+                        개
+                      </span>
+                      <span className="w-px h-3 bg-gray-200" />
+                      <span className="text-gray-400">
+                        개별 판정 상세는 추후 지원 예정
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* 하단 통계 */}
+                <div className="grid grid-cols-2 gap-3 px-6 pb-5 border-t border-gray-50 pt-4">
                   <div className="flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <Zap className="size-4 text-purple-400" />
+                    <Zap className="size-4 text-purple-400 shrink-0" />
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                        양측 합산 스트로크
+                        총 스트로크
                       </p>
                       <p className="text-lg font-black text-purple-600">
                         {summary.totalStrokeCount}회
@@ -1604,7 +1836,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <Clock className="size-4 text-orange-400" />
+                    <Clock className="size-4 text-orange-400 shrink-0" />
                     <div>
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
                         경기 시간
