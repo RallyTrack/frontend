@@ -42,7 +42,7 @@ export function AuthModal({ open, onClose, onLoginSuccess, initialView= "login" 
 
 const handleLogin = async (email: string, password: string) => {
   try {
-    const res = await fetch("http://localhost:8080/api/v1/login", {
+    const res = await fetch("/api/v1/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
