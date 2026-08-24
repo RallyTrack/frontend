@@ -10,7 +10,7 @@ export async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null;
 
   try {
-    const res = await fetch("http://localhost:8080/api/v1/token/refresh", {
+    const res = await fetch("/api/v1/token/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),
