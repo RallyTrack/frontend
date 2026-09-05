@@ -41,8 +41,15 @@ export function Header({
         setDropdownOpen(false);
       }
     };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDropdownOpen(false);
+    };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", keyHandler);
+    };
   }, []);
 
   const initials = user?.nickname ? user.nickname.slice(0, 2).toUpperCase() : "?";
@@ -63,12 +70,14 @@ export function Header({
           {/* ── 로고 ── */}
           <button
             onClick={() => onNavigate("dashboard")}
-            className="flex items-center gap-2 focus:outline-none shrink-0"
+            className="flex items-center gap-2 shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
             aria-label="홈으로"
           >
             <img
               src="/RallyTrack.svg"
               alt="RallyTrack"
+              width={160}
+              height={48}
               className="h-12 w-auto object-contain"
             />
           </button>
@@ -80,12 +89,12 @@ export function Header({
               className={`
                 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150
                 ${currentPage === "dashboard"
-                  ? "bg-blue-50 text-blue-700"
+                  ? "bg-[#1a2b4c]/[0.06] text-[#1a2b4c]"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                 }
               `}
             >
-              <LayoutDashboard className="size-4" />
+              <LayoutDashboard className="size-4" aria-hidden="true" />
               대시보드
             </button>
           </nav>
@@ -94,7 +103,10 @@ export function Header({
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen((v) => !v)}
-              className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200"
+              aria-label="계정 메뉴"
+              aria-haspopup="menu"
+              aria-expanded={dropdownOpen}
+              className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
             >
               {/* 아바타 */}
               <div className="relative shrink-0">
@@ -102,6 +114,8 @@ export function Header({
                   <img
                     src={user.avatarUrl}
                     alt={user.nickname ?? "프로필"}
+                    width={32}
+                    height={32}
                     className="w-8 h-8 rounded-full object-cover ring-2 ring-white shadow-sm"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).style.display = "none";
@@ -110,7 +124,7 @@ export function Header({
                 ) : (
                   <div
                     className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
-                    style={{ background: "linear-gradient(135deg, #1e40af, #3b82f6)" }}
+                    style={{ background: "linear-gradient(135deg, #1a2b4c, #2a4070)" }}
                   >
                     {initials}
                   </div>
@@ -127,6 +141,7 @@ export function Header({
               )}
 
               <ChevronDown
+                aria-hidden="true"
                 className={`size-4 text-slate-400 transition-transform duration-200 ${
                   dropdownOpen ? "rotate-180" : ""
                 }`}
@@ -135,12 +150,12 @@ export function Header({
 
             {/* ── 드롭다운 ── */}
             {dropdownOpen && (
-              <div className="header-dropdown-menu absolute right-0 top-[calc(100%+8px)] w-60 bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-100 overflow-hidden">
+              <div role="menu" className="header-dropdown-menu absolute right-0 top-[calc(100%+8px)] w-60 bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)] border border-slate-100 overflow-hidden">
                 {/* 유저 정보 */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-slate-50">
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0"
-                    style={{ background: "linear-gradient(135deg, #1e40af, #3b82f6)" }}
+                    style={{ background: "linear-gradient(135deg, #1a2b4c, #2a4070)" }}
                   >
                     {initials}
                   </div>
@@ -157,21 +172,23 @@ export function Header({
                 {/* 메뉴 항목 */}
                 <div className="py-1.5">
                   <button
+                    role="menuitem"
                     onClick={() => { onNavigate("account"); setDropdownOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left focus-visible:outline-none focus-visible:bg-slate-100"
                   >
                     <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                      <Settings className="size-3.5 text-slate-500" />
+                      <Settings className="size-3.5 text-slate-500" aria-hidden="true" />
                     </div>
                     계정 설정
                   </button>
 
                   <button
+                    role="menuitem"
                     onClick={() => { onNavigate("account"); setDropdownOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors text-left focus-visible:outline-none focus-visible:bg-slate-100"
                   >
                     <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                      <User className="size-3.5 text-slate-500" />
+                      <User className="size-3.5 text-slate-500" aria-hidden="true" />
                     </div>
                     프로필 보기
                   </button>
@@ -180,11 +197,12 @@ export function Header({
                 {/* 로그아웃 */}
                 <div className="border-t border-slate-50 py-1.5">
                   <button
+                    role="menuitem"
                     onClick={() => { setDropdownOpen(false); onLogout(); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors text-left font-semibold"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors text-left font-semibold focus-visible:outline-none focus-visible:bg-red-50"
                   >
                     <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center">
-                      <LogOut className="size-3.5 text-red-400" />
+                      <LogOut className="size-3.5 text-red-400" aria-hidden="true" />
                     </div>
                     로그아웃
                   </button>

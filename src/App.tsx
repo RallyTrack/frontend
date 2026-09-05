@@ -19,14 +19,20 @@ interface UserInfo {
 
 const ACCOUNT_STORAGE_KEY = "rallytrack-account-profile";
 
-function buildUrl(page: Page, videoId?: string | null) {
+function buildUrl(page: Page, videoId?: string | null, timeSec?: number | null) {
+  // 영상 페이지에서만 ?t=초 로 재생 시작 지점을 URL에 반영 (딥링크 가능)
+  const t =
+    page === "video" && typeof timeSec === "number" && timeSec > 0
+      ? `?t=${Math.max(0, Math.round(timeSec * 100) / 100)}`
+      : "";
+
   switch (page) {
     case "onboarding":
       return "/";
     case "dashboard":
       return "/dashboard";
     case "video":
-      return videoId ? `/video/${videoId}` : "/video";
+      return videoId ? `/video/${videoId}${t}` : `/video${t}`;
     case "report":
       return videoId ? `/report/${videoId}` : "/report";
     case "account":
@@ -36,27 +42,41 @@ function buildUrl(page: Page, videoId?: string | null) {
   }
 }
 
-function parseLocation(): { page: Page; videoId: string | null } {
+function parseLocation(): {
+  page: Page;
+  videoId: string | null;
+  startTime: number | null;
+} {
   const parts = window.location.pathname.split("/").filter(Boolean);
 
+  const rawT = new URLSearchParams(window.location.search).get("t");
+  const parsedT = rawT != null ? Number(rawT) : NaN;
+  const startTime = Number.isFinite(parsedT) && parsedT >= 0 ? parsedT : null;
+
   if (parts.length === 0) {
-    return { page: "onboarding", videoId: null };
+    return { page: "onboarding", videoId: null, startTime: null };
   }
 
   const [first, second] = parts;
 
-  if (first === "dashboard") return { page: "dashboard", videoId: null };
-  if (first === "account") return { page: "account", videoId: null };
-  if (first === "video") return { page: "video", videoId: second ?? null };
-  if (first === "report") return { page: "report", videoId: second ?? null };
+  if (first === "dashboard")
+    return { page: "dashboard", videoId: null, startTime: null };
+  if (first === "account")
+    return { page: "account", videoId: null, startTime: null };
+  if (first === "video")
+    return { page: "video", videoId: second ?? null, startTime };
+  if (first === "report")
+    return { page: "report", videoId: second ?? null, startTime: null };
 
-  return { page: "onboarding", videoId: null };
+  return { page: "onboarding", videoId: null, startTime: null };
 }
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>("onboarding");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+  // 히트맵/타임라인에서 넘어올 때 영상 시작 지점(초)
+  const [videoStartTime, setVideoStartTime] = useState<number | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authInitialView, setAuthInitialView] = useState<"login" | "signup" | "forgot">("login");
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -123,9 +143,10 @@ export default function App() {
 
   useEffect(() => {
     const apply = () => {
-      const { page, videoId } = parseLocation();
+      const { page, videoId, startTime } = parseLocation();
       setCurrentPage(page);
       setSelectedVideoId(videoId);
+      setVideoStartTime(startTime);
     };
 
     apply();
@@ -152,10 +173,16 @@ export default function App() {
     return () => window.removeEventListener("user:updated", syncUser);
   }, []);
 
-  const go = (page: Page, videoId?: string | null) => {
-    const url = buildUrl(page, videoId ?? selectedVideoId);
-    window.history.pushState({ page, videoId: videoId ?? selectedVideoId }, "", url);
+  const go = (page: Page, videoId?: string | null, timeSec?: number | null) => {
+    const nextVideoId = videoId ?? selectedVideoId;
+    const url = buildUrl(page, nextVideoId, timeSec);
+    window.history.pushState(
+      { page, videoId: nextVideoId, t: timeSec ?? null },
+      "",
+      url,
+    );
     setCurrentPage(page);
+    setVideoStartTime(typeof timeSec === "number" ? timeSec : null);
 
     if (typeof videoId !== "undefined") {
       setSelectedVideoId(videoId);
@@ -196,8 +223,8 @@ export default function App() {
   };
 
   const handleJumpToVideo = (time: number) => {
-    void time;
-    go("video", selectedVideoId);
+    // 히트맵/타임라인 클릭 → 해당 시점부터 재생 (?t=초)
+    go("video", selectedVideoId, Number.isFinite(time) ? time : null);
   };
 
   useEffect(() => {
@@ -236,6 +263,7 @@ export default function App() {
       {currentPage === "video" && selectedVideoId && (
         <VideoPlayerPage
           videoId={selectedVideoId}
+          startTime={videoStartTime}
           onBack={() => window.history.back()}
           onNavigate={handleNavigate}
           onLogout={handleLogout}

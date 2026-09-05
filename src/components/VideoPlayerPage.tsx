@@ -33,6 +33,8 @@ import {
   Info,
   Check,
   X,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import { Header, type Page } from "./Header";
 import {
@@ -56,6 +58,8 @@ interface UserInfo {
 
 interface VideoPlayerPageProps {
   videoId: string;
+  /** 히트맵/타임라인에서 넘어올 때 재생을 시작할 지점(초). URL의 ?t= 값 */
+  startTime?: number | null;
   onBack?: () => void;
   onNavigate: (page: Page) => void;
   onLogout: () => void;
@@ -181,7 +185,7 @@ function HighlightClipCard({
       onMouseLeave={() => setIsHovering(false)}
       className={`relative w-full text-left rounded-2xl border overflow-hidden transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${rc.bg} ${rc.border}`}
     >
-      <div className="relative aspect-video bg-gray-900 overflow-hidden">
+      <div className="relative aspect-video bg-slate-900 overflow-hidden">
         {videoSrc ? (
           <video
             ref={previewRef}
@@ -202,11 +206,11 @@ function HighlightClipCard({
           }`}
         >
           <div className="bg-white/90 rounded-full p-2.5 shadow-lg">
-            <Play className="size-4 text-gray-900 translate-x-px" />
+            <Play className="size-4 text-slate-900 translate-x-px" />
           </div>
         </div>
         <div className={`absolute top-2 left-2 w-7 h-7 rounded-full ${rc.badge} flex items-center justify-center shadow-md`}>
-          <span className="text-white text-xs font-black">#{clip.rank}</span>
+          <span className="text-white text-xs font-bold">#{clip.rank}</span>
         </div>
         <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-2 py-0.5 rounded-md backdrop-blur-sm">
           {formatTime(clip.time)}
@@ -219,9 +223,9 @@ function HighlightClipCard({
             {typeLabel}
           </span>
         </div>
-        <p className="text-xs font-semibold text-gray-800 truncate">{clip.label}</p>
+        <p className="text-xs font-semibold text-slate-800 truncate">{clip.label}</p>
         {clip.description && (
-          <p className="text-[10px] text-gray-400 mt-0.5 truncate">{clip.description}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate">{clip.description}</p>
         )}
       </div>
     </button>
@@ -262,11 +266,11 @@ function MiniCourtMap({
 
   return (
     <div className="pt-1 pb-2">
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-0.5">
+      <p className="text-[11px] font-semibold text-slate-400 mb-1.5 px-0.5">
         미니맵
       </p>
       <div
-        className="relative w-full rounded-lg overflow-hidden border border-gray-200 bg-[#111]"
+        className="relative w-full rounded-lg overflow-hidden border border-slate-200 bg-[#111]"
         style={{ aspectRatio: "1/1.8" }}
       >
         {minimapVideoUrl ? (
@@ -279,15 +283,15 @@ function MiniCourtMap({
             preload="metadata"
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-gray-50">
-            <Map className="size-5 text-gray-300" />
-            <span className="text-[9px] text-gray-300 font-medium text-center leading-tight px-2">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-slate-50">
+            <Map className="size-5 text-slate-300" />
+            <span className="text-[9px] text-slate-300 font-medium text-center leading-tight px-2">
               분석 완료 후<br />표시됩니다
             </span>
           </div>
         )}
       </div>
-      <p className="text-[9px] text-gray-400 text-center mt-1">코트 추적 영상</p>
+      <p className="text-[9px] text-slate-400 text-center mt-1">코트 추적 영상</p>
     </div>
   );
 }
@@ -296,38 +300,22 @@ function MiniCourtMap({
 // 스트로크 유틸리티
 // ─────────────────────────────────────────────────────────────
 
-/** API 이벤트의 type 문자열 → StrokeFilter 카테고리 */
-function getStrokeCategory(type: string): Exclude<StrokeFilter, "all"> {
-  switch (type) {
-    case "스매시":
-    case "Smash":
-    case "smash":
-      return "smash";
-    case "클리어":
-    case "Clear":
-    case "clear":
-      return "clear";
-    case "드롭":
-    case "Drop":
-    case "drop":
-      return "drop";
-    case "드라이브":
-    case "Drive":
-    case "drive":
-      return "drive";
-    case "서브":
-    case "Serve":
-    case "serve":
-      return "serve";
-    case "네트":
-    case "Net":
-    case "net":
-      return "net";
-    // 레거시 매핑
-    case "득점": return "other";
-    case "랠리": return "other";
-    default:     return "other";
-  }
+/** 문자열(타입/제목 등)에서 스트로크 카테고리를 키워드로 추론 (대소문자·부분일치 허용) */
+function getStrokeCategory(raw?: string): Exclude<StrokeFilter, "all"> {
+  const s = (raw ?? "").toLowerCase();
+  if (/스매시|smash/.test(s)) return "smash";
+  if (/클리어|하이클리어|롱하이|clear|lob/.test(s)) return "clear";
+  if (/드롭|커트|drop|cut/.test(s)) return "drop";
+  if (/드라이브|drive/.test(s)) return "drive";
+  if (/서브|서비스|serve|service/.test(s)) return "serve";
+  if (/네트|헤어핀|푸시|net|hairpin|push/.test(s)) return "net";
+  return "other";
+}
+
+/** 이벤트에서 카테고리 판정: type 우선, 안 잡히면 title 로 폴백 */
+function categoryOfEvent(e: { type?: string; title?: string }): Exclude<StrokeFilter, "all"> {
+  const byType = getStrokeCategory(e.type);
+  return byType !== "other" ? byType : getStrokeCategory(e.title);
 }
 
 const STROKE_FILTER_LIST: { key: StrokeFilter; label: string }[] = [
@@ -361,7 +349,7 @@ function getStrokeStyle(cat: Exclude<StrokeFilter, "all">) {
     case "drive":  return { badge: "bg-amber-50 text-amber-700 border-amber-200",  icon: "text-amber-500"   };
     case "serve":  return { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "text-emerald-500" };
     case "net":    return { badge: "bg-orange-50 text-orange-700 border-orange-200", icon: "text-orange-500" };
-    default:       return { badge: "bg-gray-50 text-gray-600 border-gray-200",     icon: "text-gray-400"    };
+    default:       return { badge: "bg-slate-50 text-slate-600 border-slate-200",     icon: "text-slate-400"    };
   }
 }
 
@@ -373,7 +361,7 @@ function getStrokeMarkerColor(cat: Exclude<StrokeFilter, "all">) {
     case "drive":  return "bg-amber-400";
     case "serve":  return "bg-emerald-400";
     case "net":    return "bg-orange-400";
-    default:       return "bg-gray-400";
+    default:       return "bg-slate-400";
   }
 }
 
@@ -383,6 +371,7 @@ function getStrokeMarkerColor(cat: Exclude<StrokeFilter, "all">) {
 
 export function VideoPlayerPage({
   videoId,
+  startTime,
   onNavigate,
   onLogout,
   user,
@@ -402,7 +391,11 @@ export function VideoPlayerPage({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<StrokeFilter>("all");
-  const [lastClickedIdx, setLastClickedIdx] = useState<number | null>(null);
+  const [lastClickedKey, setLastClickedKey] = useState<string | number | null>(null);
+
+  // ── 전체화면 ────────────────────────────────────────────────
+  const videoStageRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // ── 사이드바 ────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -613,6 +606,23 @@ export function VideoPlayerPage({
     }
   };
 
+  // ── ?t= 로 넘어온 시작 지점으로 1회 이동 (히트맵/타임라인 → 영상) ──
+  const appliedStartTimeRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (typeof startTime !== "number" || startTime <= 0) return;
+    // 메타데이터(길이) 로드 전에는 seek 해도 되돌아가므로 대기
+    if (originalDuration <= 0) return;
+    if (appliedStartTimeRef.current === startTime) return;
+
+    appliedStartTimeRef.current = startTime;
+    const target = Math.min(startTime, originalDuration);
+    setCurrentTime(target);
+    syncBothVideos((el) => {
+      el.currentTime = target;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startTime, originalDuration]);
+
   // ── 프로그레스 바 드래그 ─────────────────────────────────────
 
   const calculateTimeFromMouse = useCallback(
@@ -742,7 +752,7 @@ export function VideoPlayerPage({
   // ── 스트로크 필터링 ─────────────────────────────────────────
   const filteredTimelineEvents = timelineEventsState.filter((e) => {
     if (activeFilter === "all") return true;
-    return getStrokeCategory(e.type) === activeFilter;
+    return categoryOfEvent(e) === activeFilter;
   });
 
   // ── 프로그레스 마커: 필터 반영 ─────────────────────────────
@@ -776,10 +786,81 @@ export function VideoPlayerPage({
       smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, other: 0,
     };
     timelineEventsState.forEach((e) => {
-      counts[getStrokeCategory(e.type)]++;
+      counts[categoryOfEvent(e)]++;
     });
     return counts;
   }, [timelineEventsState]);
+
+  // ── 타임라인 이벤트 한 줄 렌더러 ──────────────────────────
+  const renderEventRow = (event: ApiTimelineEvent) => {
+    const cat = categoryOfEvent(event);
+    const style = getStrokeStyle(cat);
+    const eventKey = event.eventId ?? event.timestamp;
+    const isActive =
+      lastClickedKey === eventKey
+        ? Math.abs(currentTime - event.timestamp) < 2
+        : lastClickedKey === null && eventKey === activeEventId;
+
+    return (
+      <button
+        key={eventKey}
+        onClick={(e) => {
+          e.stopPropagation();
+          setLastClickedKey(eventKey);
+          handleJumpTo(event.timestamp);
+        }}
+        className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${
+          isActive
+            ? "bg-[#1a2b4c]/[0.08] border-transparent ring-1 ring-inset ring-[#1a2b4c]/20 shadow-sm"
+            : "hover:bg-slate-50 border-transparent"
+        }`}
+      >
+        {isActive && (
+          <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-[#8ce600]" />
+        )}
+        <span
+          className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg border ${style.badge} ${style.icon}`}
+        >
+          {getStrokeIcon(cat)}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-800 truncate">
+              {event.title || event.type}
+            </span>
+            <span className="text-[10px] font-mono text-slate-400 flex-shrink-0 tabular-nums">
+              {event.displayTime || formatTime(event.timestamp)}
+            </span>
+          </div>
+          {event.description && (
+            <p className="text-[10px] text-slate-400 mt-0.5 truncate">{event.description}</p>
+          )}
+        </div>
+        <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="w-5 h-5 rounded-full bg-slate-900/10 flex items-center justify-center">
+            <Play className="size-2.5 text-slate-500 translate-x-px" />
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  // ── 전체화면 토글 ───────────────────────────────────────────
+  const toggleFullscreen = useCallback(() => {
+    const el = videoStageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      el.requestFullscreen?.();
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
 
   // ── 점수 수정 핸들러 ─────────────────────────────────────────
   const handleScoreEditOpen = () => {
@@ -817,7 +898,7 @@ export function VideoPlayerPage({
   // ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header
         currentPage="video"
         onNavigate={onNavigate}
@@ -837,29 +918,49 @@ export function VideoPlayerPage({
           className={`
             fixed left-0 top-16 z-30
             flex flex-col bg-white
-            border-r border-gray-100
-            shadow-[2px_0_20px_rgba(0,0,0,0.08)]
+            border-r border-slate-200/70
+            shadow-[2px_0_24px_rgba(15,23,42,0.05)]
             transition-all duration-300 ease-in-out
             h-[calc(100vh-64px)] overflow-hidden
             ${sidebarOpen ? "w-56" : "w-14"}
           `}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
-            {/* ── 토글 + 네비게이션 ── */}
-            <div className={`px-3 pt-2 pb-2 ${!sidebarOpen && "px-2"}`}>
-              <div className="flex justify-end mb-1">
-                <button
-                  onClick={() => setSidebarOpen((v) => !v)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-100 hover:text-gray-500 transition-colors"
-                  title={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
-                >
-                  {sidebarOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-                </button>
+            {/* ── '영상 분석' 라벨 + 접기 토글 (같은 행) ── */}
+            <div className={`flex items-center pt-2 ${sidebarOpen ? "justify-between px-3" : "justify-end px-2"}`}>
+              {sidebarOpen && (
+                <p className="pl-1 text-[11px] font-medium text-slate-400">영상 분석</p>
+              )}
+              <button
+                onClick={() => setSidebarOpen((v) => !v)}
+                aria-label={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
+                aria-expanded={sidebarOpen}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+                title={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
+              >
+                {sidebarOpen ? <PanelLeftClose className="size-4" aria-hidden="true" /> : <PanelLeftOpen className="size-4" aria-hidden="true" />}
+              </button>
+            </div>
+
+            {/* ── 영상 제목 ── */}
+            {sidebarOpen && (
+              <div className="px-4 pt-1 pb-3 border-b border-slate-100">
+                {videoInfo?.title ? (
+                  <h1 className="text-lg font-bold text-slate-900 leading-tight line-clamp-3">
+                    {videoInfo.title}
+                  </h1>
+                ) : (
+                  <div className="h-5 w-4/5 rounded bg-slate-100 animate-pulse" />
+                )}
               </div>
+            )}
+
+            {/* ── 네비게이션 ── */}
+            <div className={`pt-2 pb-2 ${sidebarOpen ? "px-3" : "px-2"}`}>
               <div className="space-y-0.5">
                 <button
                   onClick={() => onNavigate("dashboard")}
-                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
                   title={!sidebarOpen ? "대시보드" : undefined}
                 >
                   <LayoutDashboard className="size-4 shrink-0" />
@@ -867,15 +968,16 @@ export function VideoPlayerPage({
                 </button>
                 <button
                   disabled
-                  className={`w-full flex items-center gap-2.5 rounded-lg bg-blue-50 text-blue-600 cursor-default ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  className={`relative w-full flex items-center gap-2.5 rounded-lg bg-[#1a2b4c]/[0.09] text-[#1a2b4c] font-semibold cursor-default ring-1 ring-inset ring-[#1a2b4c]/10 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
                   title={!sidebarOpen ? "영상 보기 (현재 페이지)" : undefined}
                 >
+                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-[#8ce600]" />
                   <Play className="size-4 shrink-0" />
                   {sidebarOpen && <span className="text-sm font-medium">영상 보기</span>}
                 </button>
                 <button
                   onClick={() => onNavigate("report")}
-                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
                   title={!sidebarOpen ? "분석 페이지" : undefined}
                 >
                   <FileText className="size-4 shrink-0" />
@@ -885,14 +987,14 @@ export function VideoPlayerPage({
             </div>
 
             {/* ── 영상 페이지 ── */}
-            <div className={`px-3 pt-1 pb-2 border-t border-gray-100 ${!sidebarOpen && "px-2"}`}>
+            <div className={`px-3 pt-1 pb-2 border-t border-slate-100 ${!sidebarOpen && "px-2"}`}>
               {sidebarOpen && (
                 <button
                   onClick={() => setVideoSectionOpen((v) => !v)}
                   className="w-full flex items-center justify-between px-1 py-2 text-left group"
                 >
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">영상 페이지</p>
-                  <ChevronRight className={`size-3 text-gray-300 transition-transform duration-200 ${videoSectionOpen ? "rotate-90" : ""}`} />
+                  <p className="text-[11px] font-semibold text-slate-400">영상 페이지</p>
+                  <ChevronRight className={`size-3 text-slate-300 transition-transform duration-200 ${videoSectionOpen ? "rotate-90" : ""}`} />
                 </button>
               )}
 
@@ -904,10 +1006,10 @@ export function VideoPlayerPage({
                   <button
                     onClick={() => videoMode !== "original" && switchVideoMode("original")}
                     className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs font-medium transition-colors ${
-                      videoMode === "original" ? "bg-emerald-50 text-emerald-700" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      videoMode === "original" ? "bg-emerald-50 text-emerald-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     }`}
                   >
-                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${videoMode === "original" ? "bg-emerald-500" : "bg-gray-300"}`} />
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${videoMode === "original" ? "bg-emerald-500" : "bg-slate-300"}`} />
                     <span className="flex-1">원본 영상</span>
                     {videoMode === "original" && (
                       <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">ON</span>
@@ -917,12 +1019,12 @@ export function VideoPlayerPage({
                     onClick={() => { if (!isAnalysisAvailable || videoMode === "analyzed") return; switchVideoMode("analyzed"); }}
                     disabled={!isAnalysisAvailable}
                     className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs font-medium transition-colors ${
-                      !isAnalysisAvailable ? "text-gray-300 cursor-not-allowed" : videoMode === "analyzed" ? "bg-amber-50 text-amber-700" : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                      !isAnalysisAvailable ? "text-slate-300 cursor-not-allowed" : videoMode === "analyzed" ? "bg-amber-50 text-amber-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     }`}
                   >
-                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${!isAnalysisAvailable ? "bg-gray-200" : videoMode === "analyzed" ? "bg-amber-500" : "bg-gray-300"}`} />
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${!isAnalysisAvailable ? "bg-slate-200" : videoMode === "analyzed" ? "bg-amber-500" : "bg-slate-300"}`} />
                     <span className="flex-1">스켈레톤 영상</span>
-                    {!isAnalysisAvailable && <Loader2 className="size-3 animate-spin text-gray-300" />}
+                    {!isAnalysisAvailable && <Loader2 className="size-3 animate-spin text-slate-300" />}
                     {isAnalysisAvailable && videoMode === "analyzed" && (
                       <span className="text-[9px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">ON</span>
                     )}
@@ -934,34 +1036,40 @@ export function VideoPlayerPage({
                 <div className="space-y-0.5">
                   <button
                     onClick={() => videoMode !== "original" && switchVideoMode("original")}
-                    className={`w-full flex justify-center px-2 py-2 rounded-lg transition-colors ${videoMode === "original" ? "bg-emerald-50 text-emerald-600" : "text-gray-400 hover:bg-gray-100"}`}
+                    aria-label="원본 영상"
+                    aria-pressed={videoMode === "original"}
+                    className={`w-full flex justify-center px-2 py-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 ${videoMode === "original" ? "bg-emerald-50 text-emerald-600" : "text-slate-400 hover:bg-slate-100"}`}
                     title="원본 영상"
                   >
-                    <Video className="size-4" />
+                    <Video className="size-4" aria-hidden="true" />
                   </button>
                   <button
                     onClick={() => isAnalysisAvailable && videoMode !== "analyzed" && switchVideoMode("analyzed")}
                     disabled={!isAnalysisAvailable}
-                    className={`w-full flex justify-center px-2 py-2 rounded-lg transition-colors ${!isAnalysisAvailable ? "text-gray-200 cursor-not-allowed" : videoMode === "analyzed" ? "bg-amber-50 text-amber-600" : "text-gray-400 hover:bg-gray-100"}`}
+                    aria-label="스켈레톤 영상"
+                    aria-pressed={videoMode === "analyzed"}
+                    className={`w-full flex justify-center px-2 py-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 ${!isAnalysisAvailable ? "text-slate-200 cursor-not-allowed" : videoMode === "analyzed" ? "bg-amber-50 text-amber-600" : "text-slate-400 hover:bg-slate-100"}`}
                     title="스켈레톤 영상"
                   >
-                    <Sparkles className="size-4" />
+                    <Sparkles className="size-4" aria-hidden="true" />
                   </button>
                   <button
-                    className="w-full flex justify-center px-2 py-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+                    onClick={() => setSidebarOpen(true)}
+                    aria-label="미니맵 (사이드바 펼치기)"
+                    className="w-full flex justify-center px-2 py-2 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
                     title="미니맵"
                   >
-                    <Map className="size-4" />
+                    <Map className="size-4" aria-hidden="true" />
                   </button>
                 </div>
               )}
             </div>
 
             {/* ── 계정 관리 ── */}
-            <div className={`px-3 pt-1 pb-2 border-t border-gray-100 ${!sidebarOpen && "px-2"}`}>
+            <div className={`px-3 pt-1 pb-2 border-t border-slate-100 ${!sidebarOpen && "px-2"}`}>
               <button
                 onClick={() => onNavigate("account")}
-                className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 ${sidebarOpen ? "px-3 py-2 mt-1" : "px-2 py-2 justify-center mt-1"}`}
+                className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${sidebarOpen ? "px-3 py-2 mt-1" : "px-2 py-2 justify-center mt-1"}`}
                 title={!sidebarOpen ? "계정 관리" : undefined}
               >
                 <User className="size-4 shrink-0" />
@@ -971,10 +1079,10 @@ export function VideoPlayerPage({
           </div>
 
           {/* ── 로그아웃 ── */}
-          <div className={`shrink-0 border-t border-gray-100 p-3 ${!sidebarOpen && "px-2"}`}>
+          <div className={`shrink-0 border-t border-slate-100 p-3 ${!sidebarOpen && "px-2"}`}>
             <button
               onClick={onLogout}
-              className={`w-full flex items-center gap-2.5 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
               title={!sidebarOpen ? "로그아웃" : undefined}
             >
               <LogOut className="size-4 shrink-0" />
@@ -989,22 +1097,14 @@ export function VideoPlayerPage({
         <main className="flex-1 overflow-y-auto">
           <div className="px-6 py-6 flex gap-6 items-start">
             {/* ── 좌 컬럼 ── */}
-            <div className="flex-1 min-w-0 flex flex-col gap-4">
-              {/* 페이지 헤더 */}
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-0.5">
-                  RallyTrack / 영상 분석
-                </p>
-                <h1 className="text-xl font-bold text-gray-900 leading-tight">
-                  {videoInfo?.title ?? "영상 불러오는 중..."}
-                </h1>
-              </div>
-
+            <div className="flex-1 min-w-0 flex flex-col gap-6">
+              {/* 영상 스테이지: 영상+컨트롤이 한 화면에 들어오도록 (제목은 왼쪽 사이드바로 이동) */}
+              <div className="flex flex-col gap-3">
               {/* 영상 모드 레이블 + AI 토글 */}
-              <div className="flex items-center justify-between px-1">
+              <div className="shrink-0 flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${videoMode === "analyzed" ? "bg-amber-400" : "bg-emerald-400"} shadow-sm`} />
-                  <span className="text-sm font-semibold text-gray-600">
+                  <span className="text-sm font-semibold text-slate-600">
                     {videoMode === "analyzed" ? "AI 분석 영상" : "원본 영상"}
                   </span>
                 </div>
@@ -1014,13 +1114,13 @@ export function VideoPlayerPage({
                     disabled={!isAnalysisAvailable}
                     className={`flex items-center gap-2 pl-2.5 pr-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 select-none ${
                       !isAnalysisAvailable
-                        ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                        ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
                         : videoMode === "analyzed"
                           ? "bg-amber-400 border-amber-300 text-amber-900 shadow-md shadow-amber-200/50 hover:bg-amber-300"
-                          : "bg-white border-gray-200 text-gray-600 shadow-sm hover:border-gray-300 hover:shadow"
+                          : "bg-white border-slate-200 text-slate-600 shadow-sm hover:border-slate-300 hover:shadow"
                     }`}
                   >
-                    <span className={`relative inline-flex w-8 h-4 rounded-full transition-all duration-300 flex-shrink-0 ${!isAnalysisAvailable ? "bg-gray-200" : videoMode === "analyzed" ? "bg-amber-700/60" : "bg-gray-200"}`}>
+                    <span className={`relative inline-flex w-8 h-4 rounded-full transition-all duration-300 flex-shrink-0 ${!isAnalysisAvailable ? "bg-slate-200" : videoMode === "analyzed" ? "bg-amber-700/60" : "bg-slate-200"}`}>
                       <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform duration-300 ${videoMode === "analyzed" ? "translate-x-4" : "translate-x-0"}`} />
                     </span>
                     {!isAnalysisAvailable ? (
@@ -1033,12 +1133,12 @@ export function VideoPlayerPage({
                   </button>
                   {!isAnalysisAvailable && (
                     <div className="absolute right-0 top-full mt-2 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                      <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl">
+                      <div className="bg-slate-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-xl">
                         <div className="flex items-center gap-1.5">
                           <Loader2 className="size-3 animate-spin text-amber-400" />
                           AI 분석 진행 중입니다. 잠시 후 이용 가능합니다.
                         </div>
-                        <div className="absolute right-5 -top-1 w-2 h-2 bg-gray-900 rotate-45" />
+                        <div className="absolute right-5 -top-1 w-2 h-2 bg-slate-900 rotate-45" />
                       </div>
                     </div>
                   )}
@@ -1046,11 +1146,14 @@ export function VideoPlayerPage({
               </div>
 
               {/* 영상 컨테이너 */}
-              <div className="rounded-2xl overflow-hidden aspect-video shadow-lg relative bg-[#111]">
+              <div
+                ref={videoStageRef}
+                className="group/stage relative aspect-video max-h-[calc(100vh-11rem)] mx-auto w-full rounded-2xl overflow-hidden shadow-lg bg-[#111]"
+              >
                 {isLoading ? (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-3">
                     <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
-                    <span className="text-white/50 text-xs">불러오는 중...</span>
+                    <span className="text-white/50 text-xs">불러오는 중…</span>
                   </div>
                 ) : error ? (
                   <div className="w-full h-full flex items-center justify-center">
@@ -1095,56 +1198,78 @@ export function VideoPlayerPage({
                       </div>
                     )}
                     {videoMode === "analyzed" && (
-                      <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-amber-400/90 backdrop-blur-sm px-2.5 py-1 rounded-full pointer-events-none z-20">
+                      <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-amber-400/90 backdrop-blur-sm px-2.5 py-1 rounded-full pointer-events-none z-20">
                         <Sparkles className="size-3 text-amber-900" />
                         <span className="text-xs font-bold text-amber-900">AI Analysis</span>
                       </div>
                     )}
                   </>
                 )}
-              </div>
-
-              {/* 컨트롤 패널 */}
-              <div className="bg-white rounded-2xl px-5 py-4 shadow-sm border border-gray-100">
-                <div className="mb-4">
+                {/* ── 오버레이 컨트롤 (영상 위에 표시) ── */}
+                <div
+                  className={`absolute inset-x-0 bottom-0 z-30 px-4 pt-10 pb-3 bg-gradient-to-t from-black/85 via-black/45 to-transparent transition-opacity duration-200 ${
+                    isPlaying
+                      ? "opacity-0 group-hover/stage:opacity-100 focus-within:opacity-100"
+                      : "opacity-100"
+                  }`}
+                >
+                <div className="mb-2">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-mono font-medium text-gray-500 tabular-nums">{formatTime(currentTime)}</span>
-                    <span className="text-xs font-mono text-gray-300 tabular-nums">{formatTime(activeDuration)}</span>
+                    <span className="text-xs font-mono font-medium text-white/85 tabular-nums">{formatTime(currentTime)}</span>
+                    <span className="text-xs font-mono text-white/55 tabular-nums">{formatTime(activeDuration)}</span>
                   </div>
                   <div
                     ref={progressBarRef}
-                    className="relative h-1.5 rounded-full cursor-pointer group"
-                    style={{ backgroundColor: "#E5E7EB" }}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label="재생 위치"
+                    aria-valuemin={0}
+                    aria-valuemax={Math.round(activeDuration) || 0}
+                    aria-valuenow={Math.round(currentTime)}
+                    aria-valuetext={`${formatTime(currentTime)} / ${formatTime(activeDuration)}`}
+                    className="relative h-1.5 rounded-full cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black/40"
+                    style={{ backgroundColor: "rgba(255,255,255,0.25)", touchAction: "none" }}
                     onMouseDown={handleMouseDown}
                     onMouseMove={handleProgressMouseMove}
                     onMouseEnter={() => setIsHovering(true)}
                     onMouseLeave={() => setIsHovering(false)}
+                    onKeyDown={(e) => {
+                      if (activeDuration <= 0) return;
+                      let t = currentTime;
+                      if (e.key === "ArrowRight") t = Math.min(activeDuration, currentTime + 5);
+                      else if (e.key === "ArrowLeft") t = Math.max(0, currentTime - 5);
+                      else if (e.key === "Home") t = 0;
+                      else if (e.key === "End") t = activeDuration;
+                      else return;
+                      e.preventDefault();
+                      handleJumpTo(t);
+                    }}
                   >
                     {isHovering && activeDuration > 0 && (
                       <div
-                        className="absolute -top-8 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded-md pointer-events-none z-10 font-mono shadow-lg"
+                        className="absolute -top-8 -translate-x-1/2 bg-slate-900 text-white text-xs px-2 py-1 rounded-md pointer-events-none z-10 font-mono shadow-lg"
                         style={{ left: `${hoverPosition}%` }}
                       >
                         {formatTime(hoverTime)}
                       </div>
                     )}
-                    <div className="absolute inset-0 rounded-full bg-gray-200" />
+                    <div className="absolute inset-0 rounded-full bg-white/25" />
                     <div
                       className="absolute top-0 left-0 h-full rounded-full transition-none"
                       style={{
                         width: `${progressPct}%`,
                         background: videoMode === "analyzed"
                           ? "linear-gradient(90deg, #f59e0b, #fbbf24)"
-                          : "linear-gradient(90deg, #3b82f6, #60a5fa)",
+                          : "linear-gradient(90deg, #8ce600, #a3e635)",
                       }}
                     />
                     <div
                       className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md border-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-                      style={{ left: `${progressPct}%`, borderColor: videoMode === "analyzed" ? "#f59e0b" : "#3b82f6" }}
+                      style={{ left: `${progressPct}%`, borderColor: videoMode === "analyzed" ? "#f59e0b" : "#8ce600" }}
                     />
                     {/* 프로그레스 마커: 스트로크 타입별 색상 */}
                     {markerEvents.map((h, idx) => {
-                      const cat = getStrokeCategory(h.type);
+                      const cat = categoryOfEvent(h);
                       return (
                         <div
                           key={h.eventId ?? idx}
@@ -1156,43 +1281,67 @@ export function VideoPlayerPage({
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="w-28" />
+                  <div className="w-28 flex items-center">
+                    <button
+                      onClick={toggleFullscreen}
+                      aria-label={isFullscreen ? "전체화면 종료" : "전체화면"}
+                      className="flex items-center justify-center w-9 h-9 rounded-xl text-white/75 hover:text-white hover:bg-white/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                      title={isFullscreen ? "전체화면 종료" : "전체화면"}
+                    >
+                      {isFullscreen ? <Minimize className="size-4" aria-hidden="true" /> : <Maximize className="size-4" aria-hidden="true" />}
+                    </button>
+                  </div>
                   <div className="flex items-center gap-3">
-                    <button onClick={() => handleSkip(-10)} className="flex items-center justify-center w-9 h-9 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all" title="-10초">
-                      <SkipBack className="size-5" />
+                    <button onClick={() => handleSkip(-10)} aria-label="10초 뒤로" className="flex items-center justify-center w-9 h-9 rounded-xl text-white/75 hover:text-white hover:bg-white/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70" title="-10초">
+                      <SkipBack className="size-5" aria-hidden="true" />
                     </button>
                     <button
                       onClick={togglePlay}
-                      className="flex items-center justify-center w-12 h-12 rounded-2xl text-white transition-all active:scale-95 shadow-md"
+                      aria-label={isPlaying ? "일시정지" : "재생"}
+                      className="flex items-center justify-center w-12 h-12 rounded-2xl text-white transition-transform active:scale-95 shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black/40"
                       style={{
-                        background: videoMode === "analyzed" ? "linear-gradient(135deg, #f59e0b, #d97706)" : "linear-gradient(135deg, #3b82f6, #2563eb)",
-                        boxShadow: videoMode === "analyzed" ? "0 4px 14px rgba(245,158,11,0.35)" : "0 4px 14px rgba(59,130,246,0.35)",
+                        background: videoMode === "analyzed" ? "linear-gradient(135deg, #f59e0b, #d97706)" : "linear-gradient(135deg, #1a2b4c, #243a63)",
+                        boxShadow: videoMode === "analyzed" ? "0 4px 14px rgba(245,158,11,0.35)" : "0 10px 24px -8px rgba(26,43,76,0.45)",
                       }}
                     >
-                      {isPlaying ? <Pause className="size-5" /> : <Play className="size-5 translate-x-0.5" />}
+                      {isPlaying ? <Pause className="size-5" aria-hidden="true" /> : <Play className="size-5 translate-x-0.5" aria-hidden="true" />}
                     </button>
-                    <button onClick={() => handleSkip(10)} className="flex items-center justify-center w-9 h-9 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all" title="+10초">
-                      <SkipForward className="size-5" />
+                    <button onClick={() => handleSkip(10)} aria-label="10초 앞으로" className="flex items-center justify-center w-9 h-9 rounded-xl text-white/75 hover:text-white hover:bg-white/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70" title="+10초">
+                      <SkipForward className="size-5" aria-hidden="true" />
                     </button>
                   </div>
                   <div className="relative w-28 flex justify-end">
                     <button
                       onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                      className="text-xs font-bold text-gray-400 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-all tabular-nums"
+                      aria-label="재생 속도"
+                      aria-haspopup="menu"
+                      aria-expanded={showSpeedMenu}
+                      className="text-xs font-bold text-white/75 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/15 transition-colors tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
                     >
                       {isSpeedUp ? "2.0×" : `${playbackRate === 1 ? "1.0" : playbackRate}×`}
                     </button>
                     {showSpeedMenu && (
                       <>
-                        <div className="fixed inset-0 z-40" onClick={() => setShowSpeedMenu(false)} />
-                        <div className="absolute bottom-full right-0 mb-2 w-24 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                        <button
+                          type="button"
+                          aria-label="속도 메뉴 닫기"
+                          className="fixed inset-0 z-40 cursor-default"
+                          onClick={() => setShowSpeedMenu(false)}
+                        />
+                        <div
+                          role="menu"
+                          onKeyDown={(e) => { if (e.key === "Escape") setShowSpeedMenu(false); }}
+                          className="absolute bottom-full right-0 mb-2 w-24 bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50"
+                        >
                           <div className="py-1">
                             {[2.0, 1.5, 1.25, 1.0, 0.75, 0.5].map((rate) => (
                               <button
                                 key={rate}
+                                role="menuitemradio"
+                                aria-checked={playbackRate === rate}
                                 onClick={() => handlePlaybackRateChange(rate)}
-                                className={`w-full px-3 py-2 text-xs text-left font-semibold transition-colors tabular-nums ${
-                                  playbackRate === rate ? "bg-blue-50 text-blue-600" : "text-gray-600 hover:bg-gray-50"
+                                className={`w-full px-3 py-2 text-xs text-left font-semibold transition-colors tabular-nums focus-visible:outline-none focus-visible:bg-slate-100 ${
+                                  playbackRate === rate ? "bg-[#1a2b4c]/[0.06] text-[#1a2b4c] font-bold" : "text-slate-600 hover:bg-slate-50"
                                 }`}
                               >
                                 {rate === 1.0 ? "보통 (1×)" : `${rate}×`}
@@ -1204,15 +1353,19 @@ export function VideoPlayerPage({
                     )}
                   </div>
                 </div>
+                </div>
+                {/* 오버레이 컨트롤 끝 */}
               </div>
+              </div>
+              {/* 영상 스테이지 끝 */}
 
               {/* TOP 3 하이라이트 */}
               {top3Clips.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <div className="bg-white rounded-2xl border border-slate-200/70 p-5">
                   <div className="flex items-center gap-2 mb-4">
                     <Flame className="size-4 text-rose-500" />
-                    <h2 className="text-sm font-bold text-gray-900">TOP 3 하이라이트</h2>
-                    <span className="ml-auto text-[10px] text-gray-400 font-mono">클릭 또는 hover 시 미리보기</span>
+                    <h2 className="text-sm font-bold text-slate-900">TOP 3 하이라이트</h2>
+                    <span className="ml-auto text-[10px] text-slate-400 font-mono">클릭 또는 hover 시 미리보기</span>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     {top3Clips.map((clip) => (
@@ -1231,21 +1384,22 @@ export function VideoPlayerPage({
 
             {/* ── 우 컬럼: 매치 스코어 + 타임라인 ── */}
             <div className="w-[340px] shrink-0">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden sticky top-20 h-[calc(100vh-96px)]">
+              <div className="bg-white rounded-2xl border border-slate-200/70 flex flex-col overflow-hidden sticky top-20 h-[calc(100vh-96px)]">
 
                 {/* ── 매치 스코어 ── */}
-                <div className="px-6 pt-6 pb-5 border-b border-gray-100">
+                <div className="px-6 pt-6 pb-5 border-b border-slate-100">
                   <div className="flex items-center justify-between mb-4">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.12em]">
+                    <p className="text-xs font-semibold text-slate-500">
                       매치 스코어
                     </p>
                     {!isEditingScore && (
                       <button
                         onClick={handleScoreEditOpen}
-                        className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600
-                                   border border-gray-100 rounded-md px-2 py-1 transition-colors hover:bg-gray-50"
+                        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600
+                                   border border-slate-100 rounded-md px-2 py-1 transition-colors hover:bg-slate-50
+                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
                       >
-                        <Pencil className="size-3" />
+                        <Pencil className="size-3" aria-hidden="true" />
                         수정
                       </button>
                     )}
@@ -1254,7 +1408,7 @@ export function VideoPlayerPage({
                   {isEditingScore ? (
                     <div>
                       <div className="flex items-center justify-center gap-4">
-                        {(["top", "bottom"] as const).map((side) => {
+                        {(["bottom", "top"] as const).map((side) => {
                           const val    = side === "top" ? editTopScore : editBottomScore;
                           const setVal = side === "top" ? setEditTopScore : setEditBottomScore;
                           const label  = side === "top" ? "Top Player" : "Bottom Player";
@@ -1263,50 +1417,59 @@ export function VideoPlayerPage({
                               <div className="flex items-center gap-1">
                                 <button
                                   onClick={() => setVal((v) => Math.max(0, v - 1))}
-                                  className="w-5 h-5 flex items-center justify-center rounded text-gray-400
-                                             hover:text-gray-700 hover:bg-gray-100 text-sm transition-colors"
+                                  aria-label={`${label} 점수 1 감소`}
+                                  className="w-5 h-5 flex items-center justify-center rounded text-slate-400
+                                             hover:text-slate-700 hover:bg-slate-100 text-sm transition-colors
+                                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
                                 >−</button>
                                 <input
                                   type="number" min={0} max={30} value={val}
+                                  inputMode="numeric"
+                                  aria-label={`${label} 점수`}
                                   onChange={(e) => setVal(Math.max(0, Math.min(30, Number(e.target.value))))}
-                                  className="w-14 text-center text-3xl font-black text-gray-900 tabular-nums
-                                             border-b-2 border-blue-500 bg-transparent outline-none
+                                  className="w-14 text-center text-3xl font-bold text-slate-900 tabular-nums
+                                             border-b-2 border-[#1a2b4c] bg-transparent outline-none
+                                             focus-visible:border-[#8ce600]
                                              [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                                 <button
                                   onClick={() => setVal((v) => Math.min(30, v + 1))}
-                                  className="w-5 h-5 flex items-center justify-center rounded text-gray-400
-                                             hover:text-gray-700 hover:bg-gray-100 text-sm transition-colors"
+                                  aria-label={`${label} 점수 1 증가`}
+                                  className="w-5 h-5 flex items-center justify-center rounded text-slate-400
+                                             hover:text-slate-700 hover:bg-slate-100 text-sm transition-colors
+                                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
                                 >+</button>
                               </div>
-                              <span className="text-[10px] text-gray-400 font-medium">{label}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{label}</span>
                             </div>
                           );
                         })}
                       </div>
                       <div className="flex items-center justify-center gap-1 mt-4 mb-[-4px]">
-                        <span className="text-xl font-light text-gray-200">:</span>
+                        <span className="text-xl font-light text-slate-200">:</span>
                       </div>
                       {scoreSaveError && (
-                        <p className="text-center text-[11px] text-red-500 mt-2">{scoreSaveError}</p>
+                        <p role="alert" className="text-center text-[11px] text-red-500 mt-2">{scoreSaveError}</p>
                       )}
                       <div className="flex gap-2 mt-3 justify-center">
                         <button
                           onClick={handleScoreCancel}
                           disabled={isSavingScore}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-500
-                                     border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs text-slate-500
+                                     border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
                         >
-                          <X className="size-3" /> 취소
+                          <X className="size-3" aria-hidden="true" /> 취소
                         </button>
                         <button
                           onClick={handleScoreSave}
                           disabled={isSavingScore}
                           className="flex items-center gap-1 px-3 py-1.5 text-xs text-white
-                                     bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                     bg-[#1a2b4c] rounded-lg hover:bg-[#243a63] disabled:opacity-50 transition-colors
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/50 focus-visible:ring-offset-1"
                         >
-                          <Check className="size-3" />
-                          {isSavingScore ? "저장 중..." : "저장"}
+                          {isSavingScore ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : <Check className="size-3" aria-hidden="true" />}
+                          {isSavingScore ? "저장 중…" : "저장"}
                         </button>
                       </div>
                     </div>
@@ -1314,13 +1477,13 @@ export function VideoPlayerPage({
                     <div>
                       <div className="flex items-center justify-center gap-4">
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreLeft}</span>
-                          <span className="text-[10px] text-gray-400 font-medium">Top Player</span>
+                          <span className="text-4xl font-bold text-slate-900 tabular-nums leading-none">{scoreRight}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">Bottom Player</span>
                         </div>
-                        <span className="text-xl font-light text-gray-200 pb-4">:</span>
+                        <span className="text-xl font-light text-slate-200 pb-4">:</span>
                         <div className="flex flex-col items-center gap-1">
-                          <span className="text-4xl font-black text-gray-900 tabular-nums leading-none">{scoreRight}</span>
-                          <span className="text-[10px] text-gray-400 font-medium">Bottom Player</span>
+                          <span className="text-4xl font-bold text-slate-900 tabular-nums leading-none">{scoreLeft}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">Top Player</span>
                         </div>
                       </div>
 
@@ -1331,21 +1494,21 @@ export function VideoPlayerPage({
                             +{unknownRallies}개 미확정
                           </span>
                           <div className="relative group">
-                            <Info className="size-3.5 text-gray-400 cursor-help" />
+                            <Info className="size-3.5 text-slate-400 cursor-help" />
                             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 w-52
-                                            bg-gray-900 text-white text-[11px] leading-relaxed
+                                            bg-slate-900 text-white text-[11px] leading-relaxed
                                             rounded-xl px-3 py-2.5 shadow-lg z-20
                                             opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                               인/아웃 판정이 불확실해 점수에 미반영된 랠리입니다.
-                              <span className="block mt-1 text-gray-400 tabular-nums">
+                              <span className="block mt-1 text-slate-400 tabular-nums">
                                 전체 {totalRallies}개 중 {unknownRallies}개 미확정
                               </span>
-                              <span className="block mt-1 text-blue-300">'수정'으로 직접 조정 가능합니다.</span>
+                              <span className="block mt-1 text-[#8ce600]">'수정'으로 직접 조정 가능합니다.</span>
                             </div>
                           </div>
                         </div>
                       ) : totalRallies > 0 ? (
-                        <p className="text-center text-[10px] text-gray-400 mt-2 tabular-nums">
+                        <p className="text-center text-[10px] text-slate-400 mt-2 tabular-nums">
                           전체 {totalRallies}개 랠리 확인 완료
                         </p>
                       ) : null}
@@ -1356,9 +1519,9 @@ export function VideoPlayerPage({
                 {/* ── 타임라인 ── */}
                 <div className="flex flex-col flex-1 min-h-0">
                   <div className="flex items-center justify-between px-5 pt-4 pb-2 flex-shrink-0">
-                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-[0.1em]">타임라인</h3>
+                    <h3 className="text-sm font-semibold text-slate-900">타임라인</h3>
                     {/* 총 이벤트 수 */}
-                    <span className="text-[10px] text-gray-400 font-mono tabular-nums">
+                    <span className="text-[10px] text-slate-400 font-mono tabular-nums">
                       {filteredTimelineEvents.length}개 이벤트
                     </span>
                   </div>
@@ -1376,14 +1539,16 @@ export function VideoPlayerPage({
                           <button
                             key={key}
                             onClick={() => setActiveFilter(key)}
+                            aria-pressed={isActive}
                             className={`
                               flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold
-                              whitespace-nowrap shrink-0 border transition-all duration-150
+                              whitespace-nowrap shrink-0 border transition-colors duration-150
+                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40
                               ${isActive
                                 ? cat
                                   ? `${style!.badge} shadow-sm`
-                                  : "bg-gray-900 text-white border-gray-900 shadow-sm"
-                                : "bg-white text-gray-400 border-gray-100 hover:border-gray-200 hover:text-gray-600"
+                                  : "bg-slate-900 text-white border-slate-900 shadow-sm"
+                                : "bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600"
                               }
                             `}
                           >
@@ -1399,7 +1564,7 @@ export function VideoPlayerPage({
                                   ml-0.5 text-[9px] font-bold px-1 py-0.5 rounded-full tabular-nums
                                   ${isActive
                                     ? cat ? "bg-white/60" : "bg-white/20"
-                                    : "bg-gray-100 text-gray-400"
+                                    : "bg-slate-100 text-slate-400"
                                   }
                                 `}
                               >
@@ -1412,68 +1577,21 @@ export function VideoPlayerPage({
                     </div>
                   </div>
 
-                  {/* ── 이벤트 리스트 ── */}
+                  {/* ── 이벤트 리스트 (항상 시간 순서, 필터만 적용) ── */}
                   <div className="flex-1 overflow-y-auto px-3 pb-4">
                     {filteredTimelineEvents.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                          <Clock className="size-4 text-gray-400" />
+                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
+                          <Clock className="size-4 text-slate-400" />
                         </div>
-                        <p className="text-sm text-gray-400 font-medium">이벤트가 없습니다</p>
-                        <p className="text-xs text-gray-300 mt-1">
+                        <p className="text-sm text-slate-400 font-medium">이벤트가 없습니다</p>
+                        <p className="text-xs text-slate-300 mt-1">
                           {activeFilter !== "all" && "다른 스트로크 유형을 선택해보세요"}
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-1">
-                        {filteredTimelineEvents.map((event, idx) => {
-                          const cat = getStrokeCategory(event.type);
-                          const style = getStrokeStyle(cat);
-                          const eventKey = event.eventId ?? event.timestamp;
-                          // lastClickedIdx: 클릭한 이벤트가 currentTime 2s 이내이면 우선 적용
-                          // → 같은 정수 초에 여러 이벤트가 있어도 클릭한 항목만 활성화
-                          const isActive = lastClickedIdx === idx
-                            ? Math.abs(currentTime - event.timestamp) < 2
-                            : (lastClickedIdx === null && eventKey === activeEventId);
-
-                          return (
-                            <button
-                              key={event.eventId ?? idx}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setLastClickedIdx(idx);
-                                handleJumpTo(event.timestamp);
-                              }}
-                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left group ${
-                                isActive
-                                  ? "bg-blue-50 border border-blue-100"
-                                  : "hover:bg-gray-50 border border-transparent"
-                              }`}
-                            >
-                              <span className={`flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-lg border ${style.badge} ${style.icon}`}>
-                                {getStrokeIcon(cat)}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-xs font-semibold text-gray-800 truncate">
-                                    {event.title || event.type}
-                                  </span>
-                                  <span className="text-[10px] font-mono text-gray-400 flex-shrink-0 tabular-nums">
-                                    {event.displayTime || formatTime(event.timestamp)}
-                                  </span>
-                                </div>
-                                {event.description && (
-                                  <p className="text-[10px] text-gray-400 mt-0.5 truncate">{event.description}</p>
-                                )}
-                              </div>
-                              <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="w-5 h-5 rounded-full bg-gray-900/8 flex items-center justify-center">
-                                  <Play className="size-2.5 text-gray-500 translate-x-px" />
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
+                        {filteredTimelineEvents.map(renderEventRow)}
                       </div>
                     )}
                   </div>

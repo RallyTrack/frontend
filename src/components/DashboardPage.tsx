@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import {
   Upload,
   Plus,
@@ -12,6 +13,11 @@ import {
   Activity,
   RotateCcw,
   CheckCircle2,
+  Check,
+  Minus,
+  Maximize2,
+  UserRound,
+  Trophy,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -87,20 +93,61 @@ interface TrendData {
 }
 
 const POINT_GUIDES = [
-  { label: "Top Left", shortLabel: "TL", color: "#3B82F6", netPoint: false },
-  { label: "Top Right", shortLabel: "TR", color: "#10B981", netPoint: false },
   {
-    label: "Bottom Right",
-    shortLabel: "BR",
+    label: "코트 왼쪽 위 모서리",
+    stepLabel: "왼쪽 위",
+    shortLabel: "1",
+    hint: "단식 코트의 왼쪽 위 꼭짓점(안쪽 사이드라인 기준)을 클릭하세요.",
+    color: "#3B82F6",
+    netPoint: false,
+  },
+  {
+    label: "코트 오른쪽 위 모서리",
+    stepLabel: "오른쪽 위",
+    shortLabel: "2",
+    hint: "단식 코트의 오른쪽 위 꼭짓점(안쪽 사이드라인 기준)을 클릭하세요.",
+    color: "#10B981",
+    netPoint: false,
+  },
+  {
+    label: "코트 오른쪽 아래 모서리",
+    stepLabel: "오른쪽 아래",
+    shortLabel: "3",
+    hint: "단식 코트의 오른쪽 아래 꼭짓점(안쪽 사이드라인 기준)을 클릭하세요.",
     color: "#EC4899",
     netPoint: false,
   },
-  { label: "Bottom Left", shortLabel: "BL", color: "#F59E0B", netPoint: false },
-  { label: "Net Left", shortLabel: "NL", color: "#8B5CF6", netPoint: true },
-  { label: "Net Right", shortLabel: "NR", color: "#06B6D4", netPoint: true },
+  {
+    label: "코트 왼쪽 아래 모서리",
+    stepLabel: "왼쪽 아래",
+    shortLabel: "4",
+    hint: "단식 코트의 왼쪽 아래 꼭짓점(안쪽 사이드라인 기준)을 클릭하세요.",
+    color: "#F59E0B",
+    netPoint: false,
+  },
+  {
+    label: "네트 왼쪽 상단",
+    stepLabel: "네트 왼쪽",
+    shortLabel: "5",
+    hint: "네트 왼쪽 끝의 맨 윗부분(네트 상단 모서리)을 클릭하세요. 기둥 바닥이 아닙니다.",
+    color: "#8B5CF6",
+    netPoint: true,
+  },
+  {
+    label: "네트 오른쪽 상단",
+    stepLabel: "네트 오른쪽",
+    shortLabel: "6",
+    hint: "네트 오른쪽 끝의 맨 윗부분(네트 상단 모서리)을 클릭하세요. 기둥 바닥이 아닙니다.",
+    color: "#06B6D4",
+    netPoint: true,
+  },
 ];
 
 type ModalStep = "upload" | "frame" | "corners";
+
+// 백엔드가 최근 영상을 최대 10개까지만 내려줌 → 페이지네이션은 사실상 휴면 상태(1페이지).
+// 백엔드 조회 제한이 늘어나면 이 값만 조정하면 페이지네이션이 다시 활성화됨.
+const VIDEOS_PER_PAGE = 10;
 
 const LOCAL_THUMBNAIL_PREFIX = "rallytrack-thumbnail-";
 
@@ -345,9 +392,9 @@ function StepIndicator({ step }: { step: ModalStep }) {
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
                   done
-                    ? "bg-green-500 border-green-500 text-white"
+                    ? "bg-[#8ce600] border-[#8ce600] text-[#1a2b4c]"
                     : active
-                      ? "bg-blue-600 border-blue-600 text-white"
+                      ? "bg-[#1a2b4c] border-[#1a2b4c] text-white"
                       : "bg-white border-gray-300 text-gray-400"
                 }`}
               >
@@ -356,9 +403,9 @@ function StepIndicator({ step }: { step: ModalStep }) {
               <span
                 className={`text-[10px] mt-0.5 font-medium ${
                   active
-                    ? "text-blue-600"
+                    ? "text-[#1a2b4c]"
                     : done
-                      ? "text-green-600"
+                      ? "text-[#6bba00]"
                       : "text-gray-400"
                 }`}
               >
@@ -368,7 +415,7 @@ function StepIndicator({ step }: { step: ModalStep }) {
             {i < steps.length - 1 && (
               <div
                 className={`w-12 h-0.5 mb-4 mx-1 rounded-full transition-all ${
-                  done ? "bg-green-400" : "bg-gray-200"
+                  done ? "bg-[#8ce600]" : "bg-gray-200"
                 }`}
               />
             )}
@@ -449,6 +496,38 @@ function toDateString(value?: string) {
   return d.toISOString().split("T")[0];
 }
 
+// 백엔드가 "HH:MM:SS" / "MM:SS" 형태로 주면 "N시간 N분 N초"로, 이미 한국어 표기면 그대로 반환
+function formatAnalysisTime(raw?: string): string {
+  if (!raw) return "0초";
+  const m = raw.trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
+  if (!m) return raw; // "2시간 16분" 등 이미 포맷된 문자열
+  const h = m[1] ? parseInt(m[1], 10) : 0;
+  const min = parseInt(m[2], 10);
+  const sec = parseInt(m[3], 10);
+  return formatSecondsKo(h * 3600 + min * 60 + sec);
+}
+
+// "45:23", "1:02:03", "8", "0:08" → 초. 숫자로 파싱 안 되면(“분석 중” 등) 0
+function parseDurationToSeconds(raw?: string): number {
+  if (!raw) return 0;
+  const t = raw.trim();
+  if (!/^\d+(:\d+)*$/.test(t)) return 0;
+  return t.split(":").reduce((acc, part) => acc * 60 + parseInt(part, 10), 0);
+}
+
+// 총 초 → "1시간 0분 8초" (앞자리 0 단위는 생략, 초는 항상 표시)
+function formatSecondsKo(total: number): string {
+  const t = Math.max(0, Math.floor(total));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  const out: string[] = [];
+  if (h > 0) out.push(`${h}시간`);
+  if (h > 0 || m > 0) out.push(`${m}분`);
+  out.push(`${s}초`);
+  return out.join(" ");
+}
+
 function buildCourtCornersPayload(points: Point[]) {
   return JSON.stringify({
     topLeft: { x: points[0].x, y: points[0].y },
@@ -492,6 +571,7 @@ export function DashboardPage({
     DashboardResponse["data"]["dashboardSummary"] | null
   >(null);
   const [videos, setVideos] = useState<VideoRecord[]>([]);
+  const [videoPage, setVideoPage] = useState(0);
 
   // ── 활동 통계: undefined=로딩중, null=실패, ActivityDataPoint[]=데이터 ──
   const [activityData, setActivityData] = useState<
@@ -514,6 +594,8 @@ export function DashboardPage({
   const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
   const [points, setPoints] = useState<Point[]>([]);
+  const [zoom, setZoom] = useState(1);
+  const [fitSize, setFitSize] = useState({ w: 0, h: 0 });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<"success" | "error" | null>(
     null,
@@ -525,6 +607,7 @@ export function DashboardPage({
   const frameCanvasRef = useRef<HTMLCanvasElement>(null);
   const cornerImgRef = useRef<HTMLImageElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const zoomBoxRef = useRef<HTMLDivElement>(null);
   const videoUrlRef = useRef<string | null>(null);
 
   const tryPromoteServerThumbnail = useCallback(
@@ -747,9 +830,45 @@ export function DashboardPage({
     });
   }, [points, videoSize]);
 
+  const recomputeFit = useCallback(() => {
+    const box = zoomBoxRef.current;
+    const img = cornerImgRef.current;
+    if (!box) return;
+    const vw = videoSize.w || img?.naturalWidth || 16;
+    const vh = videoSize.h || img?.naturalHeight || 9;
+    const bw = box.clientWidth;
+    const bh = box.clientHeight;
+    if (!bw || !bh) return;
+    const s = Math.min(bw / vw, bh / vh);
+    setFitSize({ w: Math.max(1, Math.round(vw * s)), h: Math.max(1, Math.round(vh * s)) });
+  }, [videoSize.w, videoSize.h]);
+
+  const adjustZoom = useCallback((delta: number) => {
+    setZoom((z) => Math.min(3, Math.max(1, Math.round((z + delta) * 100) / 100)));
+  }, []);
+
+  useEffect(() => {
+    if (modalStep !== "corners") return;
+    setZoom(1);
+    recomputeFit();
+    const box = zoomBoxRef.current;
+    const onResize = () => recomputeFit();
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      adjustZoom(e.deltaY < 0 ? 0.25 : -0.25);
+    };
+    window.addEventListener("resize", onResize);
+    box?.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      window.removeEventListener("resize", onResize);
+      box?.removeEventListener("wheel", onWheel);
+    };
+  }, [modalStep, capturedDataUrl, recomputeFit, adjustZoom]);
+
   useEffect(() => {
     if (modalStep === "corners") drawOverlay();
-  }, [points, modalStep, drawOverlay]);
+  }, [points, modalStep, zoom, fitSize, drawOverlay]);
 
   useEffect(() => {
     if (modalStep !== "corners" || points.length !== 6) {
@@ -833,6 +952,11 @@ export function DashboardPage({
     setPoints([]);
     setThumbnailBlob(null);
     setModalStep("corners");
+  };
+
+  const openUploadModal = () => {
+    setShowUploadModal(true);
+    setModalStep("upload");
   };
 
   const closeModal = () => {
@@ -961,6 +1085,42 @@ export function DashboardPage({
   const currentTip = BADMINTON_TIPS[tipIndex];
   const currentGuide = points.length < 6 ? POINT_GUIDES[points.length] : null;
 
+  const reduceMotion = useReducedMotion();
+  const greetingHour = new Date().getHours();
+  const greeting =
+    greetingHour < 12
+      ? "좋은 아침이에요"
+      : greetingHour < 18
+        ? "좋은 오후예요"
+        : "좋은 저녁이에요";
+  const fadeUp = (delay = 0) => ({
+    initial: reduceMotion ? false : { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.45, delay, ease: [0.16, 1, 0.3, 1] as const },
+  });
+
+  const analysisSeconds = videos.reduce(
+    (sum, v) => sum + parseDurationToSeconds(v.duration),
+    0,
+  );
+  const analysisTimeLabel =
+    analysisSeconds > 0
+      ? formatSecondsKo(analysisSeconds)
+      : formatAnalysisTime(stats?.totalAnalysisTime);
+
+  const totalVideoPages = Math.max(1, Math.ceil(videos.length / VIDEOS_PER_PAGE));
+  const safeVideoPage = Math.min(videoPage, totalVideoPages - 1);
+  const pagedVideos = videos.slice(
+    safeVideoPage * VIDEOS_PER_PAGE,
+    safeVideoPage * VIDEOS_PER_PAGE + VIDEOS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setVideoPage((p) =>
+      Math.min(p, Math.max(0, Math.ceil(videos.length / VIDEOS_PER_PAGE) - 1)),
+    );
+  }, [videos.length]);
+
   // ── 퍼포먼스 트렌드 렌더 헬퍼 ─────────────────────────────────
   const trendIsLoading = trendData === undefined;
   const trendIsFailed = trendData === null;
@@ -981,190 +1141,150 @@ export function DashboardPage({
         user={user}
       />
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
+      <main className="relative flex-1 max-w-6xl mx-auto w-full px-6 py-10 lg:py-12">
+        <div className="pointer-events-none absolute inset-x-0 -top-10 h-72 overflow-hidden">
+          <div className="absolute left-1/2 top-0 h-56 w-[46rem] max-w-full -translate-x-1/2 rounded-full bg-[#8ce600]/[0.09] blur-[110px]" />
+          <div className="absolute left-[12%] top-6 h-40 w-72 -translate-x-1/2 rounded-full bg-[#1a2b4c]/[0.06] blur-[90px]" />
+        </div>
+
+        <motion.div
+          {...fadeUp()}
+          className="relative mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+        >
           <div>
-            <p className="text-xs font-semibold text-blue-500 tracking-widest uppercase mb-1">
-              My Dashboard
+            <p className="mb-1 text-sm font-medium text-slate-400">
+              {user?.nickname ? `${user.nickname}님, ${greeting}` : greeting}
             </p>
-            <h1 className="text-2xl font-bold text-slate-900">영상 대시보드</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              업로드한 경기 영상과 AI 분석 리포트를 관리하세요
+            <h1 className="text-[26px] sm:text-[32px] font-bold tracking-tight text-slate-900">
+              영상 대시보드
+            </h1>
+            <p className="mt-1.5 text-sm text-slate-500">
+              업로드한 경기 영상과 AI 분석 리포트를 한곳에서 관리하세요
             </p>
           </div>
           <button
-            onClick={() => { setShowUploadModal(true); setModalStep("upload"); }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-sm text-sm font-semibold"
+            onClick={openUploadModal}
+            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#1a2b4c] px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-slate-900/10 transition-all hover:bg-[#243a63] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8ce600] focus-visible:ring-offset-2"
           >
             <Upload className="size-4" />
             영상 업로드
           </button>
-        </div>
+        </motion.div>
 
-        {/* ── 통계 카드 ── */}
+        {/* ── 통계 ── */}
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="relative mb-8 grid grid-cols-1 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200/70 bg-white sm:grid-cols-2 sm:divide-x sm:divide-y-0">
             {[0, 1].map((i) => (
-              <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-slate-100 animate-pulse shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-2.5 bg-slate-100 rounded-full animate-pulse w-24" />
-                  <div className="h-6 bg-slate-100 rounded-full animate-pulse w-14" />
-                </div>
+              <div key={i} className="p-5">
+                <div className="h-2.5 w-24 rounded-full bg-slate-100 animate-pulse" />
+                <div className="mt-3 h-8 w-28 rounded-lg bg-slate-100 animate-pulse" />
               </div>
             ))}
           </div>
         ) : stats ? (
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
-                <Film className="size-5 text-blue-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-400 mb-1">총 업로드 영상</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-bold text-slate-900 tabular-nums">{stats.totalVideos}</span>
-                  <span className="text-sm text-slate-400 ml-0.5">개</span>
+          <motion.div
+            {...fadeUp(0.05)}
+            className="relative mb-8 grid grid-cols-1 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200/70 bg-white sm:grid-cols-2 sm:divide-x sm:divide-y-0"
+          >
+            {[
+              { icon: Film, label: "총 업로드 영상", value: `${stats.totalVideos}`, suffix: "개" },
+              { icon: Clock, label: "총 분석 시간", value: analysisTimeLabel, suffix: "" },
+            ].map(({ icon: Icon, label, value, suffix }) => (
+              <div
+                key={label}
+                className="relative p-5 transition-colors hover:bg-slate-50/60"
+              >
+                <div className="flex items-center gap-2 text-slate-500">
+                  <Icon className="size-4 text-[#1a2b4c]" />
+                  <p className="text-[13px] font-medium">{label}</p>
+                </div>
+                <div className="mt-2.5 flex items-baseline gap-1">
+                  <span className="text-2xl font-bold leading-none tracking-tight tabular-nums text-slate-900 sm:text-[28px]">
+                    {value}
+                  </span>
+                  {suffix && <span className="text-sm font-medium text-slate-400">{suffix}</span>}
                 </div>
               </div>
-            </div>
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-4 hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
-                <Clock className="size-5 text-violet-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-400 mb-1">총 영상 시간</p>
-                <span className="text-2xl font-bold text-slate-900 tabular-nums">{stats.totalAnalysisTime}</span>
-              </div>
-            </div>
-          </div>
+            ))}
+          </motion.div>
         ) : null}
 
-        {/* ── 활동 통계 차트 (스켈레톤 포함) ── */}
-        {/* <ActivityChartCard activityData={activityData} /> */}
-
-        {/* ── 퍼포먼스 트렌드 + 배드민턴 팁 ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-          {/* ── 퍼포먼스 트렌드 (주석 처리됨) ──
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <TrendingUp className="size-4 text-emerald-500" />
-              <h2 className="text-sm font-semibold text-slate-800">퍼포먼스 트렌드</h2>
-              <span className="ml-auto text-[10px] text-slate-400">최근 7주 · 분석 데이터 기반</span>
+        {/* ── 오늘의 팁 ── */}
+        <motion.div
+          {...fadeUp(0.1)}
+          className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a2b4c] to-[#24406e] p-6 text-white"
+        >
+          <div className="pointer-events-none absolute -right-10 -top-12 size-44 rounded-full bg-[#8ce600]/10 blur-2xl" />
+          <div className="pointer-events-none absolute right-24 bottom-0 size-24 translate-y-10 rounded-full bg-white/5" />
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-4xl ring-1 ring-white/15">
+              {currentTip.icon}
             </div>
-
-            <div className="space-y-4">
-              {trendIsLoading ? (
-                [0, 1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className="w-14 h-3 bg-slate-100 rounded-full animate-pulse shrink-0" />
-                    <div className="flex-1">
-                      <SparklineSkeleton />
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <div className="w-8 h-5 bg-slate-100 rounded-full animate-pulse" />
-                      <div className="w-8 h-4 bg-slate-100 rounded-full animate-pulse" />
-                    </div>
-                  </div>
-                ))
-              ) : trendIsFailed ? (
-                <div className="flex flex-col items-center justify-center py-8 gap-2">
-                  <TrendingUp className="size-6 text-slate-300" />
-                  <p className="text-xs text-slate-400 font-medium">데이터를 불러올 수 없습니다</p>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 text-[#8ce600]">
+                <Lightbulb className="size-3.5" />
+                <span className="text-xs font-semibold">오늘의 배드민턴 팁</span>
+              </div>
+              <motion.div
+                key={tipIndex}
+                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <p className="mt-1.5 text-base font-bold">{currentTip.title}</p>
+                <div className="mt-1 flex min-h-[100px] items-center sm:min-h-[80px]">
+                  <p className="text-[13px] leading-normal text-white/65 sm:max-w-[62ch]">
+                    {currentTip.desc}
+                  </p>
                 </div>
-              ) : (
-                trendRows.map(({ label, key, color }) => {
-                  const data = trendData![key];
-                  const current = data[data.length - 1];
-                  const prev = data[data.length - 2];
-                  const diff = current - prev;
-                  return (
-                    <div key={label} className="flex items-center gap-4">
-                      <span className="w-14 text-xs font-semibold text-gray-500 shrink-0">{label}</span>
-                      <div className="flex-1">
-                        <TrendSparkline data={data} color={color} />
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-sm font-black tabular-nums" style={{ color }}>
-                          {current}
-                        </span>
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                            diff >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
-                          }`}
-                        >
-                          {diff >= 0 ? "+" : ""}{diff}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+              </motion.div>
             </div>
-
-            <p className="mt-4 text-[10px] text-slate-300">
-              * 트렌드는 분석된 경기 리포트 데이터를 기반으로 자동 계산됩니다.
-            </p>
-          </div>
-          ── 퍼포먼스 트렌드 끝 ── */}
-
-          {/* 배드민턴 팁 */}
-          <div className="flex flex-col gap-4 lg:col-span-3">
-            <div className="bg-gradient-to-br from-[#1a2b4c] to-[#2a4070] rounded-2xl p-5 text-white flex-1 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-white/5 -translate-y-8 translate-x-8" />
-              <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-3">
-                  <Lightbulb className="size-4 text-[#8ce600]" />
-                  <span className="text-[10px] font-bold text-[#8ce600] uppercase tracking-widest">
-                    오늘의 배드민턴 팁
-                  </span>
-                </div>
-                <div className="text-3xl mb-2">{currentTip.icon}</div>
-                <p className="text-sm font-bold mb-1">{currentTip.title}</p>
-                <p className="text-xs text-white/70 leading-relaxed min-h-[48px]">{currentTip.desc}</p>
-                <div className="flex items-center justify-between mt-4">
+            <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-center">
+              <div className="flex items-center gap-1.5">
+                {BADMINTON_TIPS.map((_, i) => (
                   <button
+                    key={i}
                     type="button"
-                    onClick={handlePrevTip}
-                    className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                    aria-label="이전 팁"
-                  >
-                    <ChevronLeft className="size-4 text-white" />
-                  </button>
-                  <div className="flex gap-1">
-                    {BADMINTON_TIPS.map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setTipIndex(i)}
-                        className={`h-1.5 rounded-full transition-all ${
-                          i === tipIndex ? "w-5 bg-[#8ce600]" : "w-2 bg-white/30 hover:bg-white/50"
-                        }`}
-                        aria-label={`${i + 1}번째 팁`}
-                      />
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleNextTip}
-                    className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                    aria-label="다음 팁"
-                  >
-                    <ChevronRight className="size-4 text-white" />
-                  </button>
-                </div>
+                    onClick={() => setTipIndex(i)}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === tipIndex ? "w-5 bg-[#8ce600]" : "w-1.5 bg-white/25 hover:bg-white/40"
+                    }`}
+                    aria-label={`${i + 1}번째 팁`}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePrevTip}
+                  className="flex size-8 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                  aria-label="이전 팁"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextTip}
+                  className="flex size-8 items-center justify-center rounded-lg bg-white/10 transition-colors hover:bg-white/20"
+                  aria-label="다음 팁"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* ── 최근 영상 목록 ── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        {/* ── 최근 영상 ── */}
+        <motion.section
+          {...fadeUp(0.15)}
+          className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
             <div className="flex items-center gap-2.5">
-              <span className="text-sm font-semibold text-slate-800">최근 영상</span>
+              <h2 className="text-sm font-semibold text-slate-900">최근 영상</h2>
               {!isLoading && videos.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-semibold tabular-nums">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-slate-500">
                   {videos.length}
                 </span>
               )}
@@ -1174,47 +1294,88 @@ export function DashboardPage({
           {isLoading ? (
             <div className="divide-y divide-slate-100">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="px-6 py-4 flex items-center gap-5">
-                  <div className="w-28 rounded-xl bg-slate-100 animate-pulse shrink-0" style={{ height: "72px" }} />
+                <div key={i} className="flex items-center gap-5 px-6 py-4">
+                  <div className="w-28 shrink-0 rounded-xl bg-slate-100 animate-pulse" style={{ height: "72px" }} />
                   <div className="flex-1 space-y-2">
-                    <div className="h-3.5 bg-slate-100 rounded-full animate-pulse w-44" />
-                    <div className="h-2.5 bg-slate-100 rounded-full animate-pulse w-28" />
+                    <div className="h-3.5 w-44 rounded-full bg-slate-100 animate-pulse" />
+                    <div className="h-2.5 w-28 rounded-full bg-slate-100 animate-pulse" />
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="h-8 w-20 bg-slate-100 rounded-xl animate-pulse" />
-                    <div className="h-8 w-20 bg-slate-100 rounded-xl animate-pulse" />
+                  <div className="hidden items-center gap-2 sm:flex">
+                    <div className="h-8 w-20 rounded-xl bg-slate-100 animate-pulse" />
+                    <div className="h-8 w-20 rounded-xl bg-slate-100 animate-pulse" />
                   </div>
                 </div>
               ))}
             </div>
           ) : videos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-                <Upload className="size-6 text-slate-400" />
+            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <div className="flex size-14 items-center justify-center rounded-2xl bg-[#1a2b4c]/[0.06]">
+                <Film className="size-6 text-[#1a2b4c]" />
               </div>
-              <p className="text-sm font-semibold text-slate-600 mb-1">업로드된 영상이 없습니다</p>
-              <p className="text-xs text-slate-400">첫 번째 경기 영상을 업로드해보세요</p>
+              <p className="mt-4 text-sm font-semibold text-slate-800">아직 업로드된 영상이 없어요</p>
+              <p className="mt-1 text-xs text-slate-500">
+                첫 경기 영상을 올리면 AI 분석 리포트를 받아볼 수 있어요
+              </p>
               <button
-                onClick={() => { setShowUploadModal(true); setModalStep("upload"); }}
-                className="mt-5 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200"
+                onClick={openUploadModal}
+                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#1a2b4c] px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-[#243a63] active:translate-y-px"
               >
+                <Upload className="size-4" />
                 영상 업로드
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {videos.map((video) => (
-                <VideoItem
-                  key={video.id}
-                  video={video}
-                  onViewVideo={onViewVideo}
-                  onViewReport={onViewReport}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
+            <>
+              <div className="divide-y divide-slate-100">
+                {pagedVideos.map((video) => (
+                  <VideoItem
+                    key={video.id}
+                    video={video}
+                    onViewVideo={onViewVideo}
+                    onViewReport={onViewReport}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+
+              {totalVideoPages > 1 && (
+                <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 sm:px-6">
+                  <p className="text-xs tabular-nums text-slate-400">
+                    {safeVideoPage * VIDEOS_PER_PAGE + 1}–
+                    {safeVideoPage * VIDEOS_PER_PAGE + pagedVideos.length}
+                    <span className="text-slate-300"> / </span>
+                    {videos.length}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setVideoPage((p) => Math.max(0, p - 1))}
+                      disabled={safeVideoPage === 0}
+                      className="flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="이전 페이지"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </button>
+                    <span className="min-w-[3.5rem] text-center text-xs font-semibold tabular-nums text-slate-600">
+                      {safeVideoPage + 1} / {totalVideoPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVideoPage((p) => Math.min(totalVideoPages - 1, p + 1))
+                      }
+                      disabled={safeVideoPage === totalVideoPages - 1}
+                      className="flex size-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="다음 페이지"
+                    >
+                      <ChevronRight className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
-        </div>
+        </motion.section>
       </main>
 
       <Footer />
@@ -1223,8 +1384,8 @@ export function DashboardPage({
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           {modalStep === "upload" && (
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
                 <div>
                   <StepIndicator step="upload" />
                   <h2 className="text-base font-bold text-gray-900 mt-1">영상 업로드</h2>
@@ -1234,14 +1395,14 @@ export function DashboardPage({
                   <X className="size-4" />
                 </button>
               </div>
-              <div className="px-6 py-5">
+              <div className="px-6 py-5 overflow-y-auto">
                 <div className="mb-5">
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">영상 이름</label>
                   <input
                     type="text"
                     value={videoName}
                     onChange={(e) => setVideoName(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-gray-50 placeholder:text-gray-400"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8ce600] focus:border-transparent transition-all bg-gray-50 placeholder:text-gray-400"
                     placeholder="예: 주말 복식 경기"
                   />
                 </div>
@@ -1256,24 +1417,24 @@ export function DashboardPage({
                       onClick={() => setPlayerType("amateur")}
                       className={`relative flex flex-col items-start gap-1.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all ${
                         playerType === "amateur"
-                          ? "border-blue-500 bg-blue-50"
+                          ? "border-[#8ce600] bg-[#f2fde0]"
                           : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
                       }`}
                     >
                       <div className="flex items-center gap-2 w-full">
-                        <span className="text-lg">🏸</span>
-                        <span className={`text-sm font-bold ${playerType === "amateur" ? "text-blue-700" : "text-gray-700"}`}>
+                        <UserRound className={`size-[18px] ${playerType === "amateur" ? "text-[#1a2b4c]" : "text-gray-400"}`} />
+                        <span className={`text-sm font-bold ${playerType === "amateur" ? "text-[#1a2b4c]" : "text-gray-700"}`}>
                           아마추어
                         </span>
                         {playerType === "amateur" && (
-                          <span className="ml-auto w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
-                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                          <span className="ml-auto w-4 h-4 rounded-full bg-[#8ce600] flex items-center justify-center shrink-0">
+                            <svg className="w-2.5 h-2.5 text-[#1a2b4c]" fill="none" viewBox="0 0 10 10">
                               <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
                           </span>
                         )}
                       </div>
-                      <p className={`text-[11px] leading-relaxed ${playerType === "amateur" ? "text-blue-500" : "text-gray-400"}`}>
+                      <p className={`text-[11px] leading-relaxed ${playerType === "amateur" ? "text-slate-600" : "text-gray-400"}`}>
                         동호회·학교·취미 경기
                       </p>
                     </button>
@@ -1283,24 +1444,24 @@ export function DashboardPage({
                       onClick={() => setPlayerType("pro")}
                       className={`relative flex flex-col items-start gap-1.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all ${
                         playerType === "pro"
-                          ? "border-violet-500 bg-violet-50"
+                          ? "border-[#8ce600] bg-[#f2fde0]"
                           : "border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white"
                       }`}
                     >
                       <div className="flex items-center gap-2 w-full">
-                        <span className="text-lg">🏆</span>
-                        <span className={`text-sm font-bold ${playerType === "pro" ? "text-violet-700" : "text-gray-700"}`}>
+                        <Trophy className={`size-[18px] ${playerType === "pro" ? "text-[#1a2b4c]" : "text-gray-400"}`} />
+                        <span className={`text-sm font-bold ${playerType === "pro" ? "text-[#1a2b4c]" : "text-gray-700"}`}>
                           프로
                         </span>
                         {playerType === "pro" && (
-                          <span className="ml-auto w-4 h-4 rounded-full bg-violet-500 flex items-center justify-center shrink-0">
-                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
+                          <span className="ml-auto w-4 h-4 rounded-full bg-[#8ce600] flex items-center justify-center shrink-0">
+                            <svg className="w-2.5 h-2.5 text-[#1a2b4c]" fill="none" viewBox="0 0 10 10">
                               <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
                           </span>
                         )}
                       </div>
-                      <p className={`text-[11px] leading-relaxed ${playerType === "pro" ? "text-violet-500" : "text-gray-400"}`}>
+                      <p className={`text-[11px] leading-relaxed ${playerType === "pro" ? "text-slate-600" : "text-gray-400"}`}>
                         실업·국가대표·공식 대회
                       </p>
                     </button>
@@ -1313,13 +1474,13 @@ export function DashboardPage({
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={handleDrop}
                     className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all ${
-                      isDragging ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-gray-50"
+                      isDragging ? "border-[#8ce600] bg-[#f2fde0]" : "border-gray-200 bg-gray-50"
                     }`}
                   >
                     <Upload className="size-8 text-gray-400 mx-auto mb-3" />
                     <p className="text-sm font-medium text-gray-600 mb-1">드래그 앤 드롭 또는 클릭하여 업로드</p>
                     <p className="text-xs text-gray-400 mb-4">MP4, MOV 등 영상 파일</p>
-                    <label className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 cursor-pointer transition-colors">
+                    <label className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a2b4c] text-white rounded-xl text-sm font-semibold hover:bg-[#243a63] cursor-pointer transition-colors">
                       <Plus className="size-4" />
                       파일 선택
                       <input type="file" accept="video/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file); }} />
@@ -1334,8 +1495,8 @@ export function DashboardPage({
           )}
 
           {modalStep === "frame" && (
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
                 <div>
                   <StepIndicator step="frame" />
                   <h2 className="text-base font-bold text-gray-900 mt-1">프레임 선택</h2>
@@ -1343,18 +1504,18 @@ export function DashboardPage({
                 </div>
                 <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"><X className="size-4" /></button>
               </div>
-              <div className="p-6">
+              <div className="p-6 overflow-y-auto">
                 <video ref={videoRef} src={videoUrlRef.current ?? undefined} className="hidden" controls={false} />
                 <canvas ref={frameCanvasRef} className="hidden" />
                 <div className="rounded-2xl overflow-hidden border border-gray-200 bg-black mb-5">
                   {capturedDataUrl ? (
-                    <img src={capturedDataUrl} alt="선택 프레임" className="w-full max-h-[70vh] object-contain mx-auto" />
+                    <img src={capturedDataUrl} alt="선택 프레임" className="w-full max-h-[50vh] object-contain mx-auto" />
                   ) : (
                     <div className="h-[480px] flex items-center justify-center text-white/70">프레임 불러오는 중...</div>
                   )}
                 </div>
                 <div className="mb-4">
-                  <input type="range" min={0} max={Math.max(totalFrames - 1, 0)} value={frameIndex} onChange={(e) => setFrameIndex(Number(e.target.value))} className="w-full" />
+                  <input type="range" min={0} max={Math.max(totalFrames - 1, 0)} value={frameIndex} onChange={(e) => setFrameIndex(Number(e.target.value))} className="w-full accent-[#8ce600]" />
                   <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                     <span>프레임: {frameIndex}</span>
                     <span>총 프레임: {totalFrames}</span>
@@ -1362,71 +1523,195 @@ export function DashboardPage({
                 </div>
                 <div className="flex items-center justify-between">
                   <button type="button" onClick={() => setModalStep("upload")} className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
-                  <button type="button" onClick={handleConfirmFrame} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700">이 프레임으로 선택</button>
+                  <button type="button" onClick={handleConfirmFrame} className="px-5 py-2.5 bg-[#1a2b4c] text-white rounded-xl text-sm font-semibold hover:bg-[#243a63]">이 프레임으로 선택</button>
                 </div>
               </div>
             </div>
           )}
 
           {modalStep === "corners" && (
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
                 <div>
-                  <StepIndicator step="corners" />
-                  <h2 className="text-base font-bold text-gray-900 mt-1">코트 좌표 지정</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">코트 네 꼭짓점과 네트 양 끝을 순서대로 클릭하세요</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-gray-900">코트 좌표 지정</h2>
+                    <span className="inline-flex items-center rounded-md bg-[#1a2b4c]/10 px-2 py-0.5 text-[11px] font-semibold text-[#1a2b4c]">
+                      단식 코트 기준
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">단식 코트 네 모서리와 네트 상단 양 끝을 순서대로 클릭하세요</p>
                 </div>
                 <button onClick={closeModal} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600"><X className="size-4" /></button>
               </div>
-              <div className="p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">
-                      현재 선택: <span style={{ color: currentGuide?.color }}>{currentGuide?.label ?? "완료"}</span>
+              <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+                <div
+                  className="mb-3 flex items-start gap-3 rounded-xl border p-3 transition-colors"
+                  style={
+                    currentGuide
+                      ? { borderColor: `${currentGuide.color}59`, backgroundColor: `${currentGuide.color}12` }
+                      : { borderColor: "#BBF7D0", backgroundColor: "#F0FDF4" }
+                  }
+                >
+                  {currentGuide ? (
+                    <span
+                      className="flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+                      style={{ backgroundColor: currentGuide.color }}
+                    >
+                      {points.length + 1}
+                    </span>
+                  ) : (
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-green-500 text-white">
+                      <CheckCircle2 className="size-4" />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <p className="text-[15px] font-bold text-gray-900 leading-tight">
+                        {currentGuide ? currentGuide.label : "좌표 지정 완료"}
+                      </p>
+                      {currentGuide && (
+                        <span className="text-xs font-medium text-gray-400">
+                          {points.length + 1} / {POINT_GUIDES.length}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs leading-snug text-gray-500">
+                      {currentGuide ? currentGuide.hint : "아래 ‘업로드 시작’ 버튼을 눌러 진행하세요."}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">순서: TL → TR → BR → BL → NL → NR</p>
                   </div>
-                  <button type="button" onClick={() => setPoints([])} className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">
-                    <RotateCcw className="size-4" />초기화
+                  <button
+                    type="button"
+                    onClick={() => setPoints([])}
+                    disabled={points.length === 0}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <RotateCcw className="size-3.5" />초기화
                   </button>
                 </div>
-                <div className="relative rounded-2xl overflow-hidden border border-gray-200 bg-black mb-5">
-                  {capturedDataUrl ? (
-                    <>
-                      <img ref={cornerImgRef} src={capturedDataUrl} alt="코트 좌표 지정" className="w-full max-h-[70vh] object-contain mx-auto block" onLoad={drawOverlay} />
-                      <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full cursor-crosshair" onClick={handleCanvasClick} />
-                    </>
-                  ) : (
-                    <div className="h-[480px] flex items-center justify-center text-white/70">이미지 불러오는 중...</div>
+                <div className="relative mb-3">
+                  <div
+                    ref={zoomBoxRef}
+                    className="relative flex overflow-auto rounded-xl border border-gray-200 bg-black"
+                    style={{ height: "44vh" }}
+                  >
+                    {capturedDataUrl ? (
+                      <div
+                        className="relative m-auto shrink-0"
+                        style={{
+                          width: fitSize.w ? fitSize.w * zoom : "100%",
+                          height: fitSize.h ? fitSize.h * zoom : "100%",
+                        }}
+                      >
+                        <img
+                          ref={cornerImgRef}
+                          src={capturedDataUrl}
+                          alt="코트 좌표 지정"
+                          draggable={false}
+                          className="block h-full w-full select-none object-contain"
+                          onLoad={() => {
+                            recomputeFit();
+                            drawOverlay();
+                          }}
+                        />
+                        <canvas
+                          ref={overlayCanvasRef}
+                          className="absolute inset-0 h-full w-full cursor-crosshair"
+                          onClick={handleCanvasClick}
+                        />
+                      </div>
+                    ) : (
+                      <div className="m-auto text-white/70">이미지 불러오는 중...</div>
+                    )}
+                  </div>
+                  {capturedDataUrl && (
+                    <div className="absolute right-2 top-2 flex items-center gap-0.5 rounded-lg bg-black/60 p-1 backdrop-blur-sm">
+                      <button
+                        type="button"
+                        onClick={() => adjustZoom(-0.25)}
+                        disabled={zoom <= 1}
+                        className="flex size-7 items-center justify-center rounded-md text-white transition-colors hover:bg-white/15 disabled:opacity-30"
+                        aria-label="축소"
+                      >
+                        <Minus className="size-4" />
+                      </button>
+                      <span className="min-w-[3.5ch] text-center text-xs font-semibold tabular-nums text-white">
+                        {Math.round(zoom * 100)}%
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => adjustZoom(0.25)}
+                        disabled={zoom >= 3}
+                        className="flex size-7 items-center justify-center rounded-md text-white transition-colors hover:bg-white/15 disabled:opacity-30"
+                        aria-label="확대"
+                      >
+                        <Plus className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setZoom(1)}
+                        disabled={zoom === 1}
+                        className="ml-0.5 flex size-7 items-center justify-center rounded-md text-white transition-colors hover:bg-white/15 disabled:opacity-30"
+                        aria-label="원래 크기"
+                      >
+                        <Maximize2 className="size-3.5" />
+                      </button>
+                    </div>
                   )}
+                  <p className="mt-1 text-center text-[11px] text-gray-400">
+                    확대하면 스크롤로 이동 · Ctrl + 휠로도 확대/축소
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+                <div className="flex">
                   {POINT_GUIDES.map((guide, i) => {
-                    const selected = points[i];
+                    const done = Boolean(points[i]);
+                    const active = i === points.length;
+                    const prevDone = i > 0 && Boolean(points[i - 1]);
                     return (
-                      <div key={guide.label} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: guide.color }} />
-                          <p className="text-sm font-semibold text-gray-700">{guide.label}</p>
-                        </div>
-                        <p className="text-xs text-gray-400">{selected ? `(${selected.x}, ${selected.y})` : "아직 선택 안 됨"}</p>
+                      <div key={guide.label} className="relative flex flex-1 flex-col items-center">
+                        {i > 0 && (
+                          <span
+                            className="absolute right-1/2 top-3.5 h-0.5 w-full -translate-y-1/2 transition-colors"
+                            style={{ backgroundColor: prevDone ? POINT_GUIDES[i - 1].color : "#E5E7EB" }}
+                          />
+                        )}
+                        <span
+                          className={`relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                            done || active ? "text-white" : "bg-gray-100 text-gray-400"
+                          }`}
+                          style={
+                            active
+                              ? { backgroundColor: guide.color, boxShadow: `0 0 0 4px ${guide.color}33` }
+                              : done
+                              ? { backgroundColor: guide.color }
+                              : undefined
+                          }
+                        >
+                          {done ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
+                        </span>
+                        <span
+                          className={`mt-1 whitespace-nowrap text-[10px] leading-tight transition-colors ${
+                            active ? "font-bold text-gray-900" : done ? "text-gray-500" : "text-gray-400"
+                          }`}
+                        >
+                          {guide.stepLabel}
+                        </span>
                       </div>
                     );
                   })}
                 </div>
-                <div className="flex items-center justify-between">
-                  <button type="button" onClick={() => setModalStep("frame")} className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={points.length < 6 || isSubmitting}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold ${
-                      points.length < 6 || isSubmitting ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"
-                    }`}
-                  >
-                    {isSubmitting ? "업로드 중..." : "업로드 시작"}
-                  </button>
-                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-3 shrink-0">
+                <button type="button" onClick={() => setModalStep("frame")} className="px-4 py-2 text-sm rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50">이전</button>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={points.length < 6 || isSubmitting}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold ${
+                    points.length < 6 || isSubmitting ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-[#1a2b4c] text-white hover:bg-[#243a63]"
+                  }`}
+                >
+                  {isSubmitting ? "업로드 중..." : "업로드 시작"}
+                </button>
               </div>
             </div>
           )}

@@ -18,6 +18,13 @@ import {
   Zap,
   Pencil,
   Check,
+  Loader2,
+  Sparkles,
+  TrendingUp,
+  Dumbbell,
+  Activity,
+  RefreshCw,
+  MapPin,
 } from "lucide-react";
 import {
   RadarChart,
@@ -31,7 +38,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  Cell,
 } from "recharts";
 import ReactMarkdown from "react-markdown";
 
@@ -44,14 +50,45 @@ import type {
 } from "../types/reportpageType";
 import { Footer } from "./ui/footer";
 import { fetchReport } from "../api/reportpageApi";
-import { updateMatchScore } from "../api/videoApi";
+import {
+  updateMatchScore,
+  fetchVideoDetail,
+  type MatchSummary,
+} from "../api/videoApi";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
-const GEMINI_MODEL_CANDIDATES = ["gemini-2.5-flash", "models/gemini-2.5-flash"];
+
+// AI 브리핑 캐시 (localStorage) — videoId + player 별로 1회만 생성, 이후 재사용해 토큰 절약
+const BRIEFING_CACHE_VERSION = "v1";
+const briefingCacheKey = (videoId: string | number, player: PlayerKey) =>
+  `rt:brief:${BRIEFING_CACHE_VERSION}:${videoId}:${player}`;
+function readBriefingCache(
+  videoId: string | number,
+  player: PlayerKey,
+): string | null {
+  try {
+    return localStorage.getItem(briefingCacheKey(videoId, player));
+  } catch {
+    return null;
+  }
+}
+function writeBriefingCache(
+  videoId: string | number,
+  player: PlayerKey,
+  text: string,
+) {
+  try {
+    localStorage.setItem(briefingCacheKey(videoId, player), text);
+  } catch {
+    /* 저장 실패는 무시 (용량 초과 등) */
+  }
+}
+// const GEMINI_MODEL_CANDIDATES = ["gemini-2.5-flash", "models/gemini-2.5-flash"];
+const GEMINI_MODEL_CANDIDATES = ["gemini-3.6-flash", "models/gemini-3.6-flash"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types / Props
@@ -103,7 +140,7 @@ function SkeletonCard({
   if (children) {
     return (
       <div
-        className={`rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden ${className}`}
+        className={`rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden ${className}`}
       >
         {children}
       </div>
@@ -112,16 +149,16 @@ function SkeletonCard({
 
   return (
     <div
-      className={`rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden ${className}`}
+      className={`rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden ${className}`}
     >
-      <div className="px-6 py-4 border-b border-gray-50">
-        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+      <div className="px-6 py-4 border-b border-slate-100">
+        <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
       </div>
       <div className="p-6">
         <div className="space-y-3">
-          <div className="h-3 bg-gray-100 rounded animate-pulse w-full" />
-          <div className="h-3 bg-gray-100 rounded animate-pulse w-5/6" />
-          <div className="h-3 bg-gray-100 rounded animate-pulse w-4/6" />
+          <div className="h-3 bg-slate-100 rounded animate-pulse w-full" />
+          <div className="h-3 bg-slate-100 rounded animate-pulse w-5/6" />
+          <div className="h-3 bg-slate-100 rounded animate-pulse w-4/6" />
         </div>
       </div>
     </div>
@@ -130,23 +167,23 @@ function SkeletonCard({
 
 function SkeletonSummary() {
   return (
-    <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm">
       <div className="flex items-center gap-2 mb-5">
-        <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
-        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+        <div className="w-4 h-4 bg-slate-200 rounded animate-pulse" />
+        <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
       </div>
 
-      <div className="flex items-center justify-center gap-6 mb-6 py-4 rounded-xl bg-gray-50">
+      <div className="flex items-center justify-center gap-6 mb-6 py-4 rounded-xl bg-slate-50">
         <div className="flex flex-col items-center gap-2">
-          <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
-          <div className="h-12 w-20 bg-gray-200 rounded animate-pulse" />
+          <div className="h-3 w-16 bg-slate-200 rounded animate-pulse" />
+          <div className="h-12 w-20 bg-slate-200 rounded animate-pulse" />
         </div>
         <div className="flex flex-col items-center gap-1">
-          <div className="h-8 w-12 bg-gray-200 rounded animate-pulse" />
+          <div className="h-8 w-12 bg-slate-200 rounded animate-pulse" />
         </div>
         <div className="flex flex-col items-center gap-2">
-          <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
-          <div className="h-12 w-20 bg-gray-200 rounded animate-pulse" />
+          <div className="h-3 w-16 bg-slate-200 rounded animate-pulse" />
+          <div className="h-12 w-20 bg-slate-200 rounded animate-pulse" />
         </div>
       </div>
 
@@ -154,13 +191,13 @@ function SkeletonSummary() {
         {[0, 1].map((i) => (
           <div
             key={i}
-            className="rounded-xl bg-gray-50 border border-gray-100 p-4"
+            className="rounded-xl bg-slate-50 border border-slate-200/70 p-4"
           >
             <div className="flex items-center gap-3">
-              <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
+              <div className="w-4 h-4 bg-slate-200 rounded animate-pulse" />
               <div className="flex-1 space-y-2">
-                <div className="h-2 w-24 bg-gray-200 rounded animate-pulse" />
-                <div className="h-5 w-16 bg-gray-200 rounded animate-pulse" />
+                <div className="h-2 w-24 bg-slate-200 rounded animate-pulse" />
+                <div className="h-5 w-16 bg-slate-200 rounded animate-pulse" />
               </div>
             </div>
           </div>
@@ -173,25 +210,25 @@ function SkeletonSummary() {
 function SkeletonHeatmap() {
   return (
     <SkeletonCard>
-      <div className="px-6 py-4 border-b border-gray-50">
+      <div className="px-6 py-4 border-b border-slate-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
-            <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+            <div className="w-4 h-4 bg-slate-200 rounded animate-pulse" />
+            <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
           </div>
-          <div className="h-7 w-16 bg-gray-200 rounded-lg animate-pulse" />
+          <div className="h-7 w-16 bg-slate-200 rounded-lg animate-pulse" />
         </div>
       </div>
       <div className="p-6">
         <div className="flex gap-6">
-          <div className="w-44 h-96 bg-gray-100 rounded-xl animate-pulse" />
+          <div className="w-44 h-96 bg-slate-100 rounded-xl animate-pulse" />
           <div className="flex-1 space-y-4">
-            <div className="h-3 bg-gray-100 rounded animate-pulse w-32" />
+            <div className="h-3 bg-slate-100 rounded animate-pulse w-32" />
             <div className="space-y-3">
               {[0, 1, 2].map((i) => (
                 <div key={i}>
-                  <div className="h-2 bg-gray-100 rounded animate-pulse w-24 mb-1" />
-                  <div className="h-2 bg-gray-100 rounded-full animate-pulse w-full" />
+                  <div className="h-2 bg-slate-100 rounded animate-pulse w-24 mb-1" />
+                  <div className="h-2 bg-slate-100 rounded-full animate-pulse w-full" />
                 </div>
               ))}
             </div>
@@ -205,24 +242,24 @@ function SkeletonHeatmap() {
 function SkeletonChart({ tall = false }: { tall?: boolean }) {
   return (
     <SkeletonCard>
-      <div className="px-6 py-4 border-b border-gray-50">
+      <div className="px-6 py-4 border-b border-slate-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gray-200 rounded animate-pulse" />
-            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+            <div className="w-4 h-4 bg-slate-200 rounded animate-pulse" />
+            <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
           </div>
-          <div className="h-7 w-16 bg-gray-200 rounded-lg animate-pulse" />
+          <div className="h-7 w-16 bg-slate-200 rounded-lg animate-pulse" />
         </div>
       </div>
       <div className="p-6">
         <div
-          className={`bg-gray-100 rounded-xl animate-pulse ${tall ? "h-64" : "h-48"}`}
+          className={`bg-slate-100 rounded-xl animate-pulse ${tall ? "h-64" : "h-48"}`}
         />
         <div className="mt-4 grid grid-cols-2 gap-2">
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className="h-10 bg-gray-100 rounded-lg animate-pulse"
+              className="h-10 bg-slate-100 rounded-lg animate-pulse"
             />
           ))}
         </div>
@@ -248,19 +285,21 @@ function PlayerToggle({
   onChange: (k: PlayerKey) => void;
 }) {
   return (
-    <div className="inline-flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+    <div className="inline-flex items-center gap-1 bg-slate-100 rounded-xl p-1">
       {PLAYERS.map(({ key, label }) => (
         <button
           key={key}
           onClick={() => onChange(key)}
+          aria-pressed={active === key}
           className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150
+            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40
             ${
               active === key
                 ? key === "bottom"
-                  ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
-                  : "bg-indigo-600 text-white shadow-sm shadow-indigo-200"
-                : "text-gray-500 hover:text-gray-800"
+                  ? "bg-[#059669] text-white shadow-sm shadow-emerald-200"
+                  : "bg-[#2563eb] text-white shadow-sm shadow-blue-200"
+                : "text-slate-500 hover:text-slate-800"
             }
           `}
         >
@@ -295,20 +334,24 @@ function CollapsibleCard({
   return (
     <div
       id={sectionId}
-      className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden scroll-mt-6"
+      className="rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-6"
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 text-left flex-1 group"
+          aria-expanded={open}
+          className="flex items-center gap-2 text-left flex-1 group rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
         >
-          <span className="flex items-center gap-2 text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 [&_svg]:size-3.5">
             {icon}
+          </span>
+          <span className="text-sm font-semibold text-slate-900 group-hover:text-[#1a2b4c] transition-colors">
             {title}
           </span>
           <ChevronDown
-            className={`size-4 text-gray-400 ml-1 transition-transform duration-300 ${
+            aria-hidden="true"
+            className={`size-4 text-slate-400 ml-1 transition-transform duration-300 ${
               open ? "rotate-180" : ""
             }`}
           />
@@ -316,20 +359,20 @@ function CollapsibleCard({
         <button
           type="button"
           onClick={onExpand}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors shrink-0 ml-3"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors shrink-0 ml-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
         >
-          <Maximize2 className="size-3" />
+          <Maximize2 className="size-3" aria-hidden="true" />
           확대
         </button>
       </div>
       <div
-        className={`transition-all duration-300 ease-in-out ${
+        className={`transition-[max-height,opacity] duration-300 ease-in-out ${
           open
             ? "max-h-[2000px] opacity-100"
             : "max-h-0 opacity-0 overflow-hidden"
         }`}
       >
-        <div className="p-6">{children}</div>
+        <div className="p-5">{children}</div>
       </div>
     </div>
   );
@@ -350,24 +393,46 @@ function Modal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
       <button
         type="button"
         className="absolute inset-0 bg-black/45"
         onClick={onClose}
         aria-label="닫기"
       />
-      <div className="relative z-10 w-full max-w-5xl max-h-[90vh] overflow-auto rounded-2xl border border-gray-200 bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/95 px-6 py-4 backdrop-blur">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+      <div className="relative z-10 w-full max-w-5xl max-h-[90vh] overflow-auto overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/70 bg-white/95 px-6 py-4 backdrop-blur">
+          <h3 className="text-lg font-bold text-slate-900 text-pretty">
+            {title}
+          </h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
+            aria-label="닫기"
+            className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
           >
-            <X className="size-4" />
+            <X className="size-4" aria-hidden="true" />
           </button>
         </div>
         <div className="p-6">{children}</div>
@@ -379,6 +444,39 @@ function Modal({
 // ─────────────────────────────────────────────────────────────────────────────
 // Badminton Heatmap Court
 // ─────────────────────────────────────────────────────────────────────────────
+
+// 히트맵 밀집도 램프 — 샷 밀집도(크기)를 나타내는 순차 색상.
+// 선수 색을 쓰지 않는 이유: (1) 초록 코트 위에서 초록 계열은 판독이 어렵고
+// (2) 두 선수를 같은 램프로 그려야 밀집도를 서로 비교할 수 있다.
+// 선수 구분은 코트 상/하 위치와 카드 헤더가 이미 담당한다.
+const HEAT_RAMP: { from: [number, number, number]; to: [number, number, number] } = {
+  from: [199, 225, 255],
+  to: [23, 58, 196],
+};
+function heatRgb(t: number): string {
+  const { from, to } = HEAT_RAMP;
+  const ch = (i: 0 | 1 | 2) => Math.round(from[i] + (to[i] - from[i]) * t);
+  return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
+}
+
+/** "0:18" · "1:02:03" · "18" → 초. 숫자 형식이 아니면(예: "분석 완료") null */
+function parseTimeToSeconds(raw?: string): number | null {
+  if (!raw) return null;
+  const t = raw.trim();
+  if (!/^\d+(:\d{1,2})*$/.test(t)) return null;
+  const parts = t.split(":").map(Number);
+  if (parts.some((n) => !Number.isFinite(n))) return null;
+  return parts.reduce((acc, n) => acc * 60 + n, 0);
+}
+
+/** 초 → "12초" · "1분 5초" */
+function formatDurationKo(total: number): string {
+  const s = Math.max(0, Math.round(total));
+  if (s < 60) return `${s}초`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r === 0 ? `${m}분` : `${m}분 ${r}초`;
+}
 
 const VW = 500;
 const VH = 1100;
@@ -418,7 +516,7 @@ function BadmintonHeatmapCourt({
   const LW = 2.5;
   const NW = 5;
   const isBottom = playerKey === "bottom";
-  const accentColor = isBottom ? "#3b82f6" : "#6366f1";
+  const accentColor = isBottom ? PLAYER_COLOR.bottom : PLAYER_COLOR.top;
 
   // ── 각 히트 포인트의 픽셀 좌표 계산 ──
   // reportpageApi.ts 에서 0~100 범위로 정규화된 좌표를 반환한다.
@@ -432,6 +530,9 @@ function BadmintonHeatmapCourt({
 
   // ── 고유 ID (플레이어별로 분리) ──
   const uid = playerKey; // "top" | "bottom"
+
+  // 표본이 적을수록 구름을 좁혀 개별 타점이 묻히지 않게 한다 (12개 이상이면 원래 크기).
+  const cloudScale = Math.max(0.32, Math.min(1, zones.length / 12));
 
   const courtSvg = (
     <svg
@@ -491,55 +592,75 @@ function BadmintonHeatmapCourt({
                t=1.0 → opacity 0.99 (완전히 진하게)
         ────────────────────────────────────────────────────────────────────── */}
         {zones.map((_, i) => {
-          const t  = zones[i].intensity;
+          const t = zones[i].intensity;
           const t2 = t * t; // 제곱 커브: 저강도 억제, 고강도 강조
 
           // 선수별 색상: 저강도(연한 파스텔) → 고강도(딥 컬러)
-          let r: number, g: number, b: number;
-          if (isBottom) {
-            // 파랑: 연하늘(195,220,255) → 딥블루(15,45,210)
-            r = Math.round(195 - t * 180);  // 195 → 15
-            g = Math.round(220 - t * 175);  // 220 → 45
-            b = Math.round(255 - t * 45);   // 255 → 210
-          } else {
-            // 인디고: 연보라(200,185,255) → 딥인디고(50,20,200)
-            r = Math.round(200 - t * 150);  // 200 → 50
-            g = Math.round(185 - t * 165);  // 185 → 20
-            b = Math.round(255 - t * 55);   // 255 → 200
-          }
+          const heatColor = heatRgb(t);
 
           return (
-            <radialGradient key={i} id={`hg-${uid}-${i}`} cx="50%" cy="50%" r="50%">
+            <radialGradient
+              key={i}
+              id={`hg-${uid}-${i}`}
+              cx="50%"
+              cy="50%"
+              r="50%"
+            >
               {/* 중심: t² 커브 → 저빈도 거의 투명, 고빈도 완전 불투명 */}
-              <stop offset="0%"   stopColor={`rgb(${r},${g},${b})`} stopOpacity={Math.min(t2 * 0.97 + 0.02, 0.99)} />
-              <stop offset="35%"  stopColor={`rgb(${r},${g},${b})`} stopOpacity={t2 * 0.88} />
-              <stop offset="65%"  stopColor={`rgb(${r},${g},${b})`} stopOpacity={t2 * 0.62} />
-              <stop offset="100%" stopColor={`rgb(${r},${g},${b})`} stopOpacity="0" />
+              <stop
+                offset="0%"
+                stopColor={heatColor}
+                stopOpacity={Math.min(t2 * 0.97 + 0.02, 0.99)}
+              />
+              <stop
+                offset="35%"
+                stopColor={heatColor}
+                stopOpacity={t2 * 0.88}
+              />
+              <stop
+                offset="65%"
+                stopColor={heatColor}
+                stopOpacity={t2 * 0.62}
+              />
+              <stop
+                offset="100%"
+                stopColor={heatColor}
+                stopOpacity="0"
+              />
             </radialGradient>
           );
         })}
 
         {/* 외곽 헤일로 전용 radialGradient — 동일 색상, t² 커브 */}
         {zones.map((_, i) => {
-          const t  = zones[i].intensity;
+          const t = zones[i].intensity;
           const t2 = t * t;
 
-          let r2: number, g2: number, b2: number;
-          if (isBottom) {
-            r2 = Math.round(195 - t * 180);
-            g2 = Math.round(220 - t * 175);
-            b2 = Math.round(255 - t * 45);
-          } else {
-            r2 = Math.round(200 - t * 150);
-            g2 = Math.round(185 - t * 165);
-            b2 = Math.round(255 - t * 55);
-          }
+          const haloColor = heatRgb(t);
 
           return (
-            <radialGradient key={`halo-grad-${i}`} id={`hg-halo-${uid}-${i}`} cx="50%" cy="50%" r="50%">
-              <stop offset="0%"   stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={t2 * 0.55} />
-              <stop offset="50%"  stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity={t2 * 0.30} />
-              <stop offset="100%" stopColor={`rgb(${r2},${g2},${b2})`} stopOpacity="0" />
+            <radialGradient
+              key={`halo-grad-${i}`}
+              id={`hg-halo-${uid}-${i}`}
+              cx="50%"
+              cy="50%"
+              r="50%"
+            >
+              <stop
+                offset="0%"
+                stopColor={haloColor}
+                stopOpacity={t2 * 0.55}
+              />
+              <stop
+                offset="50%"
+                stopColor={haloColor}
+                stopOpacity={t2 * 0.3}
+              />
+              <stop
+                offset="100%"
+                stopColor={haloColor}
+                stopOpacity="0"
+              />
             </radialGradient>
           );
         })}
@@ -588,11 +709,12 @@ function BadmintonHeatmapCourt({
         />
       )}
 
-      {/* ── 히트맵 레이어: 헤일로(외곽 구름) + 코어(중심 색상) 이중 레이어 ── */}
-      <g clipPath={`url(#court-clip-${uid})`}>
-        {/* 1차: 넓은 헤일로 레이어 — 멀리 퍼지는 구름 효과 */}
+      {/* ── 밀도 구름 ──
+          표본이 적으면(<12) 구름이 코트를 뒤덮어 실제 타점을 가린다.
+          따라서 표본 수에 따라 반지름을 줄이고, 타점은 아래 마커로 정확히 표시한다. */}
+      <g clipPath={`url(#court-clip-${uid})`} style={{ pointerEvents: "none" }}>
         {zonePixels.map((zp, index) => {
-          const haloR = 130 + zp.intensity * 70;
+          const haloR = (130 + zp.intensity * 70) * cloudScale;
           return (
             <ellipse
               key={`halo-${index}`}
@@ -602,14 +724,11 @@ function BadmintonHeatmapCourt({
               ry={haloR}
               fill={`url(#hg-halo-${uid}-${index})`}
               filter={`url(#heatblur-halo-${uid})`}
-              style={{ pointerEvents: "none" }}
             />
           );
         })}
-        {/* 2차: 코어 레이어 — 중심부 색상 블롭, 클릭 가능 */}
         {zonePixels.map((zp, index) => {
-          // 강도에 비례하되 충분히 크게 — 가우시안 블러가 대부분의 번짐을 담당
-          const baseR = 90 + zp.intensity * 45;
+          const baseR = (90 + zp.intensity * 45) * cloudScale;
           return (
             <ellipse
               key={`core-${index}`}
@@ -619,37 +738,10 @@ function BadmintonHeatmapCourt({
               ry={baseR}
               fill={`url(#hg-${uid}-${index})`}
               filter={`url(#heatblur-${uid})`}
-              style={{ cursor: "pointer" }}
-              onClick={() => {
-                setSelectedHeatmapPoint(index);
-                if (typeof zp.time === "number") onJumpToVideo(zp.time);
-              }}
             />
           );
         })}
       </g>
-
-      {/* ── 선택 포인트 마커 ── */}
-      {selectedHeatmapPoint !== null && zonePixels[selectedHeatmapPoint] && (
-        <g clipPath={`url(#court-clip-${uid})`}>
-          <circle
-            cx={zonePixels[selectedHeatmapPoint].px}
-            cy={zonePixels[selectedHeatmapPoint].py}
-            r="10"
-            fill="none"
-            stroke={accentColor}
-            strokeWidth="2.5"
-            strokeDasharray="5 3"
-          />
-          <circle
-            cx={zonePixels[selectedHeatmapPoint].px}
-            cy={zonePixels[selectedHeatmapPoint].py}
-            r="3"
-            fill={accentColor}
-            opacity="0.8"
-          />
-        </g>
-      )}
 
       {/* ── 코트 라인 (히트맵 위에 겹쳐서 선명하게) ── */}
       <rect
@@ -673,6 +765,58 @@ function BadmintonHeatmapCourt({
       <line x1={SL} y1={SSB} x2={SR} y2={SSB} stroke="#fff" strokeWidth={LW} />
       <line x1={CX} y1={BT} x2={CX} y2={SST} stroke="#fff" strokeWidth={LW} />
       <line x1={CX} y1={SSB} x2={CX} y2={BB} stroke="#fff" strokeWidth={LW} />
+
+      {/* ── 정확한 타격 지점 마커 (클릭 대상) ── */}
+      <g clipPath={`url(#court-clip-${uid})`}>
+        {zonePixels.map((zp, index) => {
+          const selected = selectedHeatmapPoint === index;
+          const jumpable = typeof zp.time === "number";
+          return (
+            <g
+              key={`hit-${index}`}
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                setSelectedHeatmapPoint(index);
+                if (jumpable) onJumpToVideo(zp.time as number);
+              }}
+            >
+              {/* 넉넉한 히트 영역 (보이지 않음) */}
+              <circle cx={zp.px} cy={zp.py} r="26" fill="transparent" />
+              <circle
+                cx={zp.px}
+                cy={zp.py}
+                r={selected ? 11 : 8}
+                fill="#fff"
+                fillOpacity="0.95"
+              />
+              <circle
+                cx={zp.px}
+                cy={zp.py}
+                r={selected ? 7 : 5}
+                fill={heatRgb(zp.intensity)}
+                stroke="#fff"
+                strokeWidth="1.5"
+              />
+            </g>
+          );
+        })}
+      </g>
+
+      {/* ── 선택 포인트 강조 링 ── */}
+      {selectedHeatmapPoint !== null && zonePixels[selectedHeatmapPoint] && (
+        <g clipPath={`url(#court-clip-${uid})`} style={{ pointerEvents: "none" }}>
+          <circle
+            cx={zonePixels[selectedHeatmapPoint].px}
+            cy={zonePixels[selectedHeatmapPoint].py}
+            r="18"
+            fill="none"
+            stroke="#fff"
+            strokeWidth="2.5"
+            strokeDasharray="5 3"
+          />
+        </g>
+      )}
+
 
       <text
         x={CX}
@@ -725,108 +869,119 @@ function BadmintonHeatmapCourt({
   const infoPanel = (
     <div className="flex flex-col justify-between py-1 min-w-0">
       <div>
-        <p className="text-[10px] font-bold text-gray-400 mb-3 uppercase tracking-widest">
+        <p className="text-[11px] font-semibold text-slate-400 mb-3">
           포지션 분포
         </p>
         <div className="space-y-2.5">
           {(() => {
-  // ── 구역 경계: SVG 상수에서 직접 파생 (하드코딩 금지) ──
-  // BT  = OT + round(OH * 0.0567)  → y%  ≈  5.67  (백 바운더리 라인)
-  // SST = NY  - round(OH * 0.1478) → y%  ≈ 35.22  (숏 서비스 라인 top)
-  // NY  = OT  + OH / 2             → y%  = 50      (네트)
-  // SSB = NY  + round(OH * 0.1478) → y%  ≈ 64.78  (숏 서비스 라인 bottom)
-  // BB  = OB  - round(OH * 0.0567) → y%  ≈ 94.33  (백 바운더리 라인)
-  const BT_PCT  = (BI / OH) * 100;           //  ≈  5.67
-  const SST_PCT = ((OH / 2 - SSO) / OH) * 100; // ≈ 35.22
-  const SSB_PCT = ((OH / 2 + SSO) / OH) * 100; // ≈ 64.78
-  const BB_PCT  = ((OH - BI) / OH) * 100;    //  ≈ 94.33
+            // ── 구역 경계: SVG 상수에서 직접 파생 (하드코딩 금지) ──
+            // BT  = OT + round(OH * 0.0567)  → y%  ≈  5.67  (백 바운더리 라인)
+            // SST = NY  - round(OH * 0.1478) → y%  ≈ 35.22  (숏 서비스 라인 top)
+            // NY  = OT  + OH / 2             → y%  = 50      (네트)
+            // SSB = NY  + round(OH * 0.1478) → y%  ≈ 64.78  (숏 서비스 라인 bottom)
+            // BB  = OB  - round(OH * 0.0567) → y%  ≈ 94.33  (백 바운더리 라인)
+            const BT_PCT = (BI / OH) * 100; //  ≈  5.67
+            const SST_PCT = ((OH / 2 - SSO) / OH) * 100; // ≈ 35.22
+            const SSB_PCT = ((OH / 2 + SSO) / OH) * 100; // ≈ 64.78
+            const BB_PCT = ((OH - BI) / OH) * 100; //  ≈ 94.33
 
-  let net = 0, mid = 0, back = 0;
-  zones.forEach((z) => {
-    const y = z.y;
-    if (isBottom) {
-  // y: 50(네트) → 100(백)
-  if (y <= SSB_PCT)      net++;   // 50 ~ 64.78
-  else if (y <= BB_PCT)  mid++;   // 64.78 ~ 94.33
-  else                   back++;  // 94.33 ~ 100
-} else {
-  // y: 0(백) → 50(네트)
-  if (y >= SST_PCT)      net++;   // 35.22 ~ 50
-  else if (y >= BT_PCT)  mid++;   // 5.67 ~ 35.22
-  else                   back++;  // 0 ~ 5.67
-}
-  });
+            let net = 0,
+              mid = 0,
+              back = 0;
+            zones.forEach((z) => {
+              const y = z.y;
+              if (isBottom) {
+                // y: 50(네트) → 100(백)
+                if (y <= SSB_PCT)
+                  net++; // 50 ~ 64.78
+                else if (y <= BB_PCT)
+                  mid++; // 64.78 ~ 94.33
+                else back++; // 94.33 ~ 100
+              } else {
+                // y: 0(백) → 50(네트)
+                if (y >= SST_PCT)
+                  net++; // 35.22 ~ 50
+                else if (y >= BT_PCT)
+                  mid++; // 5.67 ~ 35.22
+                else back++; // 0 ~ 5.67
+              }
+            });
 
-  const total   = zones.length || 1;
-  const netPct  = Math.round((net  / total) * 100);
-  const midPct  = Math.round((mid  / total) * 100);
-  const backPct = Math.max(0, 100 - netPct - midPct);
+            const total = zones.length || 1;
+            const netPct = Math.round((net / total) * 100);
+            const midPct = Math.round((mid / total) * 100);
+            const backPct = Math.max(0, 100 - netPct - midPct);
 
-  const rows = [
-    { label: "네트 앞",     pct: netPct,  color: "#ef4444" },
-    { label: "미드 코트",   pct: midPct,  color: "#f97316" },
-    { label: "백 바운더리", pct: backPct, color: "#3b82f6" },
-  ];
+            // 전→후 순차 단일 색상 (밝음→어두움)
+            const rows = [
+              { label: "네트 앞", pct: netPct, color: "#94a3b8" },
+              { label: "미드 코트", pct: midPct, color: "#475569" },
+              { label: "백 바운더리", pct: backPct, color: "#1e293b" },
+            ];
 
-  return rows.map(({ label, pct, color }) => (
-    <div key={label}>
-      <div className="flex justify-between mb-1">
-        <span className="text-[11px] font-medium text-gray-500">{label}</span>
-        <span className="text-[11px] font-bold tabular-nums" style={{ color }}>
-          {zones.length === 0 ? "—" : `${pct}%`}
-        </span>
-      </div>
-      <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-        <div
-          className="h-1.5 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: color }}
-        />
-      </div>
-    </div>
-  ));
-})()}
- 
-
-
+            return rows.map(({ label, pct, color }) => (
+              <div key={label}>
+                <div className="flex justify-between mb-1">
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {label}
+                  </span>
+                  <span
+                    className="text-[11px] font-bold tabular-nums"
+                    style={{ color }}
+                  >
+                    {zones.length === 0 ? "—" : `${pct}%`}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-1.5 rounded-full transition-[width] duration-500"
+                    style={{ width: `${pct}%`, backgroundColor: color }}
+                  />
+                </div>
+              </div>
+            ));
+          })()}
         </div>
       </div>
-      <div
-        className="mt-4 rounded-xl p-3"
-        style={{
-          background: `${accentColor}10`,
-          border: `1px solid ${accentColor}30`,
-        }}
-      >
-        <p
-          className="text-[11px] font-semibold mb-1"
-          style={{ color: accentColor }}
-        >
-          📍 히트 포인트
+      <div className="mt-4 rounded-xl border border-slate-200/70 bg-slate-50 p-3">
+        <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+          <MapPin
+            className="size-3"
+            style={{ color: accentColor }}
+            aria-hidden="true"
+          />
+          히트 포인트
+          {zones.length > 0 && (
+            <span className="ml-auto tabular-nums text-slate-400">
+              {zones.length}개
+            </span>
+          )}
         </p>
-        <p
-          className="text-[11px] leading-relaxed"
-          style={{ color: accentColor }}
-        >
-          {zones.length > 0
-            ? `총 ${zones.length}개 위치 기록됨. 점 클릭 시 영상 해당 구간으로 이동합니다.`
-            : "히트맵 데이터가 없습니다."}
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          {zones.length === 0
+            ? "히트맵 데이터가 없습니다."
+            : zones.some((z) => typeof z.time === "number")
+              ? "코트 위 점을 클릭하면 영상의 해당 구간으로 이동합니다."
+              : "이 영상에는 타격별 시간 정보가 없어 위치만 표시됩니다."}
         </p>
       </div>
       <div className="mt-4 flex items-center gap-3">
         {/* 그라디언트 바: 선수 색상으로 낮음→높음 */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-[10px] text-gray-400 font-medium shrink-0">낮음</span>
+          <span className="text-[10px] text-slate-400 font-medium shrink-0">
+            낮음
+          </span>
           <div
             className="flex-1 h-2 rounded-full"
             style={{
-              background: isBottom
-                ? "linear-gradient(to right, rgba(195,220,255,0.25), rgba(15,45,210,0.92))"
-                : "linear-gradient(to right, rgba(200,185,255,0.25), rgba(50,20,200,0.92))",
+              background: `linear-gradient(to right, ${heatRgb(0)}, ${heatRgb(1)})`,
             }}
           />
-          <span className="text-[10px] text-gray-400 font-medium shrink-0">높음</span>
+          <span className="text-[10px] text-slate-400 font-medium shrink-0">
+            높음
+          </span>
         </div>
-        <span className="text-[10px] text-gray-400">샷 밀집도</span>
+        <span className="text-[10px] text-slate-400">샷 밀집도</span>
       </div>
     </div>
   );
@@ -848,7 +1003,7 @@ function BadmintonHeatmapCourt({
     <div className="flex gap-6 items-stretch">
       <div
         className="relative shrink-0 overflow-visible"
-        style={{ width: "min(175px, 36%)", aspectRatio: `${VW} / ${VH}` }}
+        style={{ width: "min(152px, 32%)", aspectRatio: `${VW} / ${VH}` }}
       >
         {courtSvg}
       </div>
@@ -874,23 +1029,115 @@ function buildZones(points: HeatmapPoint[]): UiHeatmapZone[] {
 // Markdown briefing
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MarkdownBriefing({ content }: { content: string }) {
+// 마크다운 헤딩(#~####) 기준으로 코칭 섹션 분리
+function parseBriefingSections(md: string): { title: string; body: string }[] {
+  const out: { title: string; body: string }[] = [];
+  let cur: { title: string; body: string } | null = null;
+  for (const raw of md.split("\n")) {
+    const h = raw.match(/^\s{0,3}#{1,4}\s+(.+?)\s*#*\s*$/);
+    if (h) {
+      if (cur) out.push(cur);
+      const title = h[1]
+        .replace(/^[0-9]+[.)]\s*/, "")
+        .replace(/^[①-⑳]\s*/, "")
+        .replace(/\*\*/g, "")
+        .trim();
+      cur = { title, body: "" };
+    } else {
+      if (!cur) cur = { title: "", body: "" };
+      cur.body += raw + "\n";
+    }
+  }
+  if (cur) out.push(cur);
+  return out.filter((s) => s.title || s.body.trim());
+}
+
+// 섹션 제목 → 아이콘 + 시맨틱 색 (키워드 매칭)
+function briefingSectionMeta(title: string): {
+  icon: React.ReactNode;
+  tint: string;
+} {
+  const t = title.toLowerCase();
+  const I = (C: typeof Bot) => <C className="size-3.5" aria-hidden="true" />;
+  if (/총평|한 줄|overview/.test(t))
+    return { icon: I(Sparkles), tint: "#1a2b4c" };
+  if (/지표|요약|metric|summary/.test(t))
+    return { icon: I(Activity), tint: "#475569" };
+  if (/강점|잘한|strength/.test(t))
+    return { icon: I(TrendingUp), tint: "#059669" };
+  if (/보완|약점|개선|weak|improve/.test(t))
+    return { icon: I(Target), tint: "#b45309" };
+  if (/훈련|추천|연습|drill|training/.test(t))
+    return { icon: I(Dumbbell), tint: "#2563eb" };
+  return { icon: I(Bot), tint: "#475569" };
+}
+
+const BRIEFING_PROSE =
+  "prose prose-sm max-w-none text-[13px] text-slate-700 leading-relaxed " +
+  "[&_p]:mb-1.5 [&_p:last-child]:mb-0 [&_ul]:my-0 [&_ul]:pl-4 [&_li]:list-disc [&_li]:mb-1 [&_li:last-child]:mb-0 [&_li]:text-slate-700 " +
+  "[&_strong]:font-semibold [&_strong]:text-[#1a2b4c] [&_h1]:hidden [&_h2]:hidden [&_h3]:hidden";
+
+function BriefingSections({
+  content,
+  accent,
+}: {
+  content: string;
+  accent: string;
+}) {
   if (!content)
     return (
-      <p className="text-sm text-gray-400">AI 브리핑 데이터가 없습니다.</p>
+      <p className="text-sm text-slate-400">AI 브리핑 데이터가 없습니다.</p>
     );
+
+  const sections = parseBriefingSections(content);
+
+  // 헤딩이 없으면 기존 프로즈 렌더로 폴백
+  if (sections.length <= 1) {
+    return (
+      <div className={BRIEFING_PROSE}>
+        <ReactMarkdown>{content}</ReactMarkdown>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="prose prose-sm max-w-none text-gray-800 leading-relaxed
-      [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-1
-      [&_h2]:text-sm  [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1
-      [&_h3]:text-sm  [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-0.5
-      [&_p]:mb-2 [&_p]:text-gray-700
-      [&_ul]:mb-2 [&_ul]:pl-4
-      [&_li]:list-disc [&_li]:mb-0.5 [&_li]:text-gray-700
-      [&_strong]:font-semibold [&_strong]:text-blue-700"
-    >
-      <ReactMarkdown>{content}</ReactMarkdown>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {sections.map((s, i) => {
+        const meta = s.title
+          ? briefingSectionMeta(s.title)
+          : { icon: null, tint: accent };
+        // "총평"은 폭 전체로
+        const isOverview = /총평|한 줄|overview/.test(s.title.toLowerCase());
+        return (
+          <div
+            key={i}
+            className={`overflow-hidden rounded-xl border border-slate-200/70 bg-white ${
+              isOverview ? "sm:col-span-2" : ""
+            }`}
+            style={{ borderLeft: `3px solid ${meta.tint}` }}
+          >
+            {s.title && (
+              <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
+                <span
+                  className="flex size-6 shrink-0 items-center justify-center rounded-lg"
+                  style={{
+                    backgroundColor: `${meta.tint}14`,
+                    color: meta.tint,
+                  }}
+                >
+                  {meta.icon}
+                </span>
+                <h4 className="text-xs font-semibold text-slate-900">
+                  {s.title}
+                </h4>
+              </div>
+            )}
+            <div className={`px-4 py-3 ${BRIEFING_PROSE}`}>
+              <ReactMarkdown>{s.body.trim()}</ReactMarkdown>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -899,17 +1146,24 @@ function MarkdownBriefing({ content }: { content: string }) {
 // Grade system
 // ─────────────────────────────────────────────────────────────────────────────
 
+// 선수 식별 색: top=파랑, bottom=초록 (전 페이지 통일). 차트/히트맵/토글 모두 이 값만 사용.
+const PLAYER_COLOR: Record<PlayerKey, string> = {
+  top: "#2563eb",
+  bottom: "#059669",
+};
+
+// 등급 색: 무지개 대신 3단계 시맨틱 (우수/보통/미흡)
 const GRADE_THRESHOLDS: Array<{
   min: number;
   grade: string;
   color: string;
   bg: string;
 }> = [
-  { min: 85, grade: "S", color: "#0ea5e9", bg: "#e0f2fe" },
-  { min: 70, grade: "A", color: "#22c55e", bg: "#dcfce7" },
-  { min: 50, grade: "B", color: "#f59e0b", bg: "#fef3c7" },
-  { min: 30, grade: "C", color: "#8b5cf6", bg: "#ede9fe" },
-  { min: 0, grade: "D", color: "#ef4444", bg: "#fee2e2" },
+  { min: 85, grade: "S", color: "#047857", bg: "#ecfdf5" },
+  { min: 70, grade: "A", color: "#047857", bg: "#ecfdf5" },
+  { min: 50, grade: "B", color: "#b45309", bg: "#fffbeb" },
+  { min: 30, grade: "C", color: "#be123c", bg: "#fff1f2" },
+  { min: 0, grade: "D", color: "#be123c", bg: "#fff1f2" },
 ];
 
 function scoreToGrade(value: number): {
@@ -920,7 +1174,7 @@ function scoreToGrade(value: number): {
   for (const t of GRADE_THRESHOLDS) {
     if (value >= t.min) return { grade: t.grade, color: t.color, bg: t.bg };
   }
-  return { grade: "D", color: "#ef4444", bg: "#fee2e2" };
+  return { grade: "D", color: "#be123c", bg: "#fff1f2" };
 }
 
 const ABILITY_DESCRIPTIONS: Record<string, string> = {
@@ -934,17 +1188,17 @@ const ABILITY_DESCRIPTIONS: Record<string, string> = {
 function AbilityGradeRow({ label, value }: { label: string; value: number }) {
   const { grade, color, bg } = scoreToGrade(value);
   return (
-    <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors">
+    <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors">
       <span
-        className="shrink-0 w-8 text-center text-xs font-black py-0.5 rounded-md"
+        className="shrink-0 w-8 text-center text-xs font-bold py-0.5 rounded-md"
         style={{ color, background: bg }}
       >
         {grade}
       </span>
-      <span className="shrink-0 w-14 text-xs font-semibold text-gray-600">
+      <span className="shrink-0 w-14 text-xs font-semibold text-slate-600">
         {label}
       </span>
-      <span className="flex-1 text-xs text-gray-600 leading-snug">
+      <span className="flex-1 text-xs text-slate-600 leading-snug">
         {ABILITY_DESCRIPTIONS[label] ?? ""}
       </span>
     </div>
@@ -954,17 +1208,17 @@ function AbilityGradeRow({ label, value }: { label: string; value: number }) {
 function AbilityGradeCard({ label, value }: { label: string; value: number }) {
   const { grade, color, bg } = scoreToGrade(value);
   return (
-    <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-gray-50 border border-gray-100">
+    <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200/70">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-600">{label}</span>
+        <span className="text-xs font-semibold text-slate-600">{label}</span>
         <span
-          className="text-xs font-black px-2 py-0.5 rounded-md min-w-[32px] text-center"
+          className="text-xs font-bold px-2 py-0.5 rounded-md min-w-[32px] text-center"
           style={{ color, background: bg }}
         >
           {grade}
         </span>
       </div>
-      <p className="text-xs text-gray-600 leading-snug">
+      <p className="text-xs text-slate-600 leading-snug">
         {ABILITY_DESCRIPTIONS[label] ?? ""}
       </p>
     </div>
@@ -979,13 +1233,16 @@ function RadarTooltip({
   payload?: Array<{ value: number; payload: { name: string } }>;
 }) {
   if (!active || !payload?.length) return null;
-  const { value, payload: { name } } = payload[0];
+  const {
+    value,
+    payload: { name },
+  } = payload[0];
   const { grade, color, bg } = scoreToGrade(value);
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-lg">
-      <p className="text-xs font-semibold text-gray-600 mb-1">{name}</p>
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg">
+      <p className="text-xs font-semibold text-slate-600 mb-1">{name}</p>
       <span
-        className="text-xs font-black px-2 py-0.5 rounded-md"
+        className="text-xs font-bold px-2 py-0.5 rounded-md"
         style={{ color, background: bg }}
       >
         {grade}
@@ -1017,20 +1274,35 @@ export function AnalysisReportPage({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reportNotReady, setReportNotReady] = useState(false); // 404 → 분석 준비 중
 
-  const [briefings, setBriefings] = useState<Record<PlayerKey, string>>({
-    top: "",
-    bottom: "",
-  });
+  const [briefings, setBriefings] = useState<Record<PlayerKey, string>>(() => ({
+    top: readBriefingCache(videoId, "top") ?? "",
+    bottom: readBriefingCache(videoId, "bottom") ?? "",
+  }));
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
 
+  const [videoTitle, setVideoTitle] = useState<string | null>(null);
+  // /videos/{id} 의 matchSummary — 랠리 집계 폴백용
+  const [videoMatchSummary, setVideoMatchSummary] =
+    useState<MatchSummary | null>(null);
+
+  // 캐시 무시하고 브리핑 재생성 (수동)
+  const handleRegenerateBriefing = () => {
+    try {
+      localStorage.removeItem(briefingCacheKey(videoId, activePlayer));
+    } catch {
+      /* noop */
+    }
+    setBriefings((prev) => ({ ...prev, [activePlayer]: "" }));
+  };
+
   // 점수 수정
-  const [rallyDetailOpen,    setRallyDetailOpen]    = useState(false);
-  const [isEditingScore,     setIsEditingScore]     = useState(false);
-  const [editMyScore,        setEditMyScore]        = useState(0);
-  const [editOpponentScore,  setEditOpponentScore]  = useState(0);
-  const [isSavingScore,      setIsSavingScore]      = useState(false);
-  const [scoreSaveError,     setScoreSaveError]     = useState<string | null>(null);
+  const [rallyDetailOpen, setRallyDetailOpen] = useState(false);
+  const [isEditingScore, setIsEditingScore] = useState(false);
+  const [editMyScore, setEditMyScore] = useState(0);
+  const [editOpponentScore, setEditOpponentScore] = useState(0);
+  const [isSavingScore, setIsSavingScore] = useState(false);
+  const [scoreSaveError, setScoreSaveError] = useState<string | null>(null);
 
   // 사이드바
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -1075,9 +1347,11 @@ export function AnalysisReportPage({
     try {
       await updateMatchScore(videoId, editOpponentScore, editMyScore);
       const newOutcome =
-        editOpponentScore > editMyScore ? "TOP_WIN"
-        : editMyScore > editOpponentScore ? "BOTTOM_WIN"
-        : "DRAW";
+        editOpponentScore > editMyScore
+          ? "TOP_WIN"
+          : editMyScore > editOpponentScore
+            ? "BOTTOM_WIN"
+            : "DRAW";
       setReport((prev) =>
         prev
           ? {
@@ -1134,10 +1408,38 @@ export function AnalysisReportPage({
     };
   }, [videoId]);
 
-  // ── Generate AI briefing ──────────────────────────────────────────────────
+  // ── 영상 상세: 제목 + 랠리 집계 폴백 ────────────────────────
+  // 분석 API(/analysis)는 랠리 수를 안 내려주는 경우가 있어, 영상 페이지가 쓰는
+  // /videos/{id} 의 matchSummary 를 폴백 소스로 사용한다.
+  useEffect(() => {
+    let alive = true;
+    fetchVideoDetail(String(videoId))
+      .then((d) => {
+        if (!alive) return;
+        setVideoTitle(d.videoInfo?.title ?? null);
+        setVideoMatchSummary(d.matchSummary ?? null);
+      })
+      .catch(() => {
+        /* 없으면 분석 API 값만 사용 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [videoId]);
+
+  // ── Generate AI briefing (localStorage 캐시: videoId+player 별 1회만 호출) ──
   useEffect(() => {
     if (!report) return;
+
+    // 1) 메모리에 이미 있으면 → 호출 안 함
     if (briefings[activePlayer]) return;
+
+    // 2) localStorage 캐시 확인 → 있으면 Gemini 호출 없이 그대로 사용 (토큰 절약)
+    const cached = readBriefingCache(videoId, activePlayer);
+    if (cached) {
+      setBriefings((prev) => ({ ...prev, [activePlayer]: cached }));
+      return;
+    }
 
     let alive = true;
     (async () => {
@@ -1194,10 +1496,15 @@ export function AnalysisReportPage({
 [기존 코치 피드백]
 ${coaching?.feedbackText ?? "(없음)"}
 
-[출력 형식]
-- 간결하게 (모바일 친화적)
-- 섹션: ① 한 줄 총평 ② 핵심 지표 요약(불릿 3~5개) ③ 강점 TOP2 ④ 보완점 TOP2 ⑤ 추천 훈련 3가지
-- 마크다운 사용 가능
+[출력 형식 — 반드시 지킬 것]
+- 아래 5개 섹션을 정확히 이 순서로, 각 섹션 제목은 마크다운 H2(\`## \`)로 시작한다. 제목 텍스트는 예시 그대로 사용한다.
+  ## 총평
+  ## 핵심 지표
+  ## 강점
+  ## 보완점
+  ## 추천 훈련
+- "총평"은 2~3문장. "핵심 지표"는 불릿 3~5개. "강점"·"보완점"은 각각 불릿 2개. "추천 훈련"은 불릿 3개.
+- 각 섹션 본문은 짧고 모바일 친화적으로. 섹션 제목 외에는 H1/H2/H3를 쓰지 않는다.
         `.trim();
 
         const genAI = new GoogleGenerativeAI(API_KEY);
@@ -1218,7 +1525,9 @@ ${coaching?.feedbackText ?? "(없음)"}
 
         if (lastErr) throw lastErr;
         if (!alive) return;
-        setBriefings((prev) => ({ ...prev, [activePlayer]: text || "" }));
+        const finalText = text || "";
+        setBriefings((prev) => ({ ...prev, [activePlayer]: finalText }));
+        if (finalText) writeBriefingCache(videoId, activePlayer, finalText);
       } catch (e: any) {
         if (!alive) return;
         setBriefingError(
@@ -1233,7 +1542,7 @@ ${coaching?.feedbackText ?? "(없음)"}
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report, activePlayer]);
+  }, [report, activePlayer, videoId, briefings]);
 
   // ── Derived UI data ───────────────────────────────────────────────────────
   const ui = useMemo(() => {
@@ -1242,17 +1551,13 @@ ${coaching?.feedbackText ?? "(없음)"}
     const playerData = report.data.players[activePlayer];
     const heatmapZones = buildZones(playerData.positionAnalysis.heatmapData);
     const strokeData = [
-      { name: "스매시", count: playerData.strokeTypes.smash, color: "#ef4444" },
-      { name: "클리어", count: playerData.strokeTypes.clear, color: "#3b82f6" },
-      { name: "드롭", count: playerData.strokeTypes.drop, color: "#10b981" },
-      {
-        name: "드라이브",
-        count: playerData.strokeTypes.drive,
-        color: "#f59e0b",
-      },
-      { name: "서브", count: playerData.strokeTypes.serve, color: "#8b5cf6" },
-      { name: "네트", count: playerData.strokeTypes.net, color: "#06b6d4" },
-      { name: "기타", count: playerData.strokeTypes.others, color: "#94a3b8" },
+      { name: "스매시", count: playerData.strokeTypes.smash },
+      { name: "클리어", count: playerData.strokeTypes.clear },
+      { name: "드롭", count: playerData.strokeTypes.drop },
+      { name: "드라이브", count: playerData.strokeTypes.drive },
+      { name: "서브", count: playerData.strokeTypes.serve },
+      { name: "네트", count: playerData.strokeTypes.net },
+      { name: "기타", count: playerData.strokeTypes.others },
     ];
     const am = playerData.abilityMetrics;
     const clamp = (v: unknown) =>
@@ -1264,9 +1569,74 @@ ${coaching?.feedbackText ?? "(없음)"}
       { name: "기동력", value: clamp(am.mobility) },
       { name: "수비력", value: clamp(am.defense) },
     ];
-    const accentColor = activePlayer === "bottom" ? "#3b82f6" : "#6366f1";
-    return { summary, heatmapZones, strokeData, abilityData, accentColor };
-  }, [report, activePlayer]);
+    const accentColor = PLAYER_COLOR[activePlayer];
+
+    // ── 양 선수 스트로크 합계 (경기 요약 카드: 점유율 비교용) ──
+    const sumStrokes = (p: (typeof report.data.players)["top"]) =>
+      (p.strokeTypes.smash ?? 0) +
+      (p.strokeTypes.clear ?? 0) +
+      (p.strokeTypes.drop ?? 0) +
+      (p.strokeTypes.drive ?? 0) +
+      (p.strokeTypes.serve ?? 0) +
+      (p.strokeTypes.net ?? 0) +
+      (p.strokeTypes.others ?? 0);
+    const bottomStrokes = sumStrokes(report.data.players.bottom);
+    const topStrokes = sumStrokes(report.data.players.top);
+    const strokeTotalBoth = bottomStrokes + topStrokes;
+    const bottomSharePct =
+      strokeTotalBoth > 0
+        ? Math.round((bottomStrokes / strokeTotalBoth) * 100)
+        : 50;
+
+    // ── 랠리 지표 ──
+    // 랠리 스코어링(매 랠리마다 1점)이므로 총 랠리 = 양측 점수 합.
+    // 점수가 아직 0:0이면 API/영상 상세 값으로 폴백.
+    const scoreRallies = (summary.myScore ?? 0) + (summary.opponentScore ?? 0);
+    const totalRallies =
+      scoreRallies > 0
+        ? scoreRallies
+        : summary.totalRallies || videoMatchSummary?.totalRallies || 0;
+    const unknownRallies =
+      summary.unknownRallies || videoMatchSummary?.unknownRallies || 0;
+
+    // 랠리당 평균 시간 = 총 경기 시간 / 총 랠리
+    const matchSeconds = parseTimeToSeconds(summary.matchTime);
+    const secondsPerRally =
+      matchSeconds != null && totalRallies > 0
+        ? matchSeconds / totalRallies
+        : null;
+
+    // 랠리당 평균 타수 = 총 스트로크 / 총 랠리
+    const strokesPerRally =
+      totalRallies > 0
+        ? Math.round(((summary.totalStrokeCount ?? 0) / totalRallies) * 10) / 10
+        : null;
+
+    // ── 선택 선수의 주 스트로크 (기타 제외) ──
+    const namedStrokes = strokeData.filter((s) => s.name !== "기타");
+    const playerStrokeTotal = strokeData.reduce((a, s) => a + s.count, 0);
+    const topStroke = namedStrokes.reduce(
+      (best, s) => (s.count > best.count ? s : best),
+      namedStrokes[0] ?? { name: "-", count: 0 },
+    );
+
+    return {
+      summary,
+      heatmapZones,
+      strokeData,
+      abilityData,
+      accentColor,
+      bottomStrokes,
+      topStrokes,
+      bottomSharePct,
+      totalRallies,
+      unknownRallies,
+      secondsPerRally,
+      strokesPerRally,
+      topStroke,
+      playerStrokeTotal,
+    };
+  }, [report, activePlayer, videoMatchSummary]);
 
   useEffect(() => {
     setSelectedHeatmapPoint(null);
@@ -1275,7 +1645,7 @@ ${coaching?.feedbackText ?? "(없음)"}
   // ── Loading / error states ────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-slate-50 flex flex-col">
         <Header
           currentPage="report"
           onNavigate={onNavigate}
@@ -1286,25 +1656,25 @@ ${coaching?.feedbackText ?? "(없음)"}
 
         <div className="flex flex-1 overflow-hidden">
           {/* 사이드바 스켈레톤 */}
-          <aside className="relative flex flex-col bg-white border-r border-gray-200 w-60 shrink-0">
-            <div className="px-3 pt-5 pb-3 border-b border-gray-100">
-              <div className="h-3 w-20 bg-gray-200 rounded animate-pulse mb-2" />
+          <aside className="relative flex flex-col bg-white border-r border-slate-200 w-60 shrink-0">
+            <div className="px-3 pt-5 pb-3 border-b border-slate-200/70">
+              <div className="h-3 w-20 bg-slate-200 rounded animate-pulse mb-2" />
               <div className="space-y-1">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
-                    className="h-9 bg-gray-100 rounded-lg animate-pulse"
+                    className="h-9 bg-slate-100 rounded-lg animate-pulse"
                   />
                 ))}
               </div>
             </div>
             <div className="px-3 pt-4 pb-3 flex-1">
-              <div className="h-3 w-24 bg-gray-200 rounded animate-pulse mb-2" />
+              <div className="h-3 w-24 bg-slate-200 rounded animate-pulse mb-2" />
               <div className="space-y-1">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <div
                     key={i}
-                    className="h-9 bg-gray-100 rounded-lg animate-pulse"
+                    className="h-9 bg-slate-100 rounded-lg animate-pulse"
                   />
                 ))}
               </div>
@@ -1314,14 +1684,14 @@ ${coaching?.feedbackText ?? "(없음)"}
           {/* 메인 콘텐츠 스켈레톤 */}
           <main className="flex-1 overflow-y-auto">
             <div className="max-w-5xl mx-auto px-6 py-10">
-              <div className="h-9 w-24 bg-gray-200 rounded-lg animate-pulse mb-6" />
+              <div className="h-9 w-24 bg-slate-200 rounded-lg animate-pulse mb-6" />
 
               <div className="space-y-6">
                 {/* 경기 결과 요약 스켈레톤 */}
                 <SkeletonSummary />
 
                 {/* 플레이어 인디케이터 */}
-                <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />
+                <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
 
                 {/* 히트맵 */}
                 <SkeletonHeatmap />
@@ -1346,7 +1716,7 @@ ${coaching?.feedbackText ?? "(없음)"}
   // ── 분석 리포트 준비 중 (404) ────────────────────────────────────
   if (reportNotReady) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="min-h-screen bg-slate-50 flex flex-col">
         <Header
           currentPage="report"
           onNavigate={onNavigate}
@@ -1359,10 +1729,10 @@ ${coaching?.feedbackText ?? "(없음)"}
             <div className="w-20 h-20 rounded-3xl bg-violet-50 border border-violet-100 flex items-center justify-center mx-auto mb-6 shadow-sm">
               <FileText className="size-9 text-violet-400" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
               분석 리포트 준비 중
             </h2>
-            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+            <p className="text-sm text-slate-500 leading-relaxed mb-6">
               AI가 경기 영상을 분석하고 있습니다.
               <br />
               분석이 완료되면 리포트가 자동으로 생성됩니다.
@@ -1379,7 +1749,7 @@ ${coaching?.feedbackText ?? "(없음)"}
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={() => onNavigate("dashboard")}
-                className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
               >
                 대시보드로
               </button>
@@ -1427,7 +1797,22 @@ ${coaching?.feedbackText ?? "(없음)"}
 
   if (!report || !ui) return null;
 
-  const { summary, heatmapZones, strokeData, abilityData, accentColor } = ui;
+  const {
+    summary,
+    heatmapZones,
+    strokeData,
+    abilityData,
+    accentColor,
+    bottomStrokes,
+    topStrokes,
+    bottomSharePct,
+    totalRallies,
+    unknownRallies,
+    secondsPerRally,
+    strokesPerRally,
+    topStroke,
+    playerStrokeTotal,
+  } = ui;
   const aiBriefing = briefings[activePlayer];
   const isBottom = activePlayer === "bottom";
 
@@ -1452,17 +1837,17 @@ ${coaching?.feedbackText ?? "(없음)"}
     {
       id: "stroke",
       label: "스트로크 분포",
-      icon: <Zap className="size-4 shrink-0 text-purple-500" />,
+      icon: <Zap className="size-4 shrink-0 text-slate-400" />,
     },
     {
       id: "ability",
       label: "능력치 분석",
-      icon: <Award className="size-4 shrink-0 text-orange-500" />,
+      icon: <Award className="size-4 shrink-0 text-slate-400" />,
     },
     {
       id: "briefing",
       label: "AI 브리핑",
-      icon: <Bot className="size-4 shrink-0 text-blue-600" />,
+      icon: <Bot className="size-4 shrink-0 text-[#1a2b4c]" />,
     },
   ];
 
@@ -1493,7 +1878,7 @@ ${coaching?.feedbackText ?? "(없음)"}
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header
         currentPage="report"
         onNavigate={onNavigate}
@@ -1509,7 +1894,7 @@ ${coaching?.feedbackText ?? "(없음)"}
 
         {/* spacer: fixed aside가 flow에서 빠지므로 동일 너비로 main을 밀어냄 */}
         <div
-          className={`shrink-0 transition-all duration-300 ease-in-out ${sidebarOpen ? "w-60" : "w-14"}`}
+          className={`shrink-0 transition-[width] duration-300 ease-in-out ${sidebarOpen ? "w-60" : "w-14"}`}
           aria-hidden="true"
         />
 
@@ -1517,44 +1902,71 @@ ${coaching?.feedbackText ?? "(없음)"}
           className={`
             fixed left-0 top-16 z-30
             flex flex-col bg-white
-            border-r border-gray-100
-            shadow-[2px_0_20px_rgba(0,0,0,0.08)]
-            transition-all duration-300 ease-in-out
+            border-r border-slate-200/70
+            shadow-[2px_0_24px_rgba(15,23,42,0.05)]
+            transition-[width] duration-300 ease-in-out
             h-[calc(100vh-64px)] overflow-hidden
             ${sidebarOpen ? "w-60" : "w-14"}
           `}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
-            {/* ── 토글 + 네비게이션 ── */}
+            {/* ── '분석 리포트' 라벨 + 접기 토글 (같은 행) ── */}
             <div
-              className={`px-3 pt-2 pb-3 border-b border-gray-100 ${sidebarOpen ? "" : "px-2"}`}
+              className={`flex items-center pt-2 ${sidebarOpen ? "justify-between px-3" : "justify-end px-2"}`}
             >
-              <div className="flex justify-end mb-1">
-                <button
-                  onClick={() => setSidebarOpen((v) => !v)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-300 hover:bg-gray-100 hover:text-gray-500 transition-colors"
-                  title={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
-                >
-                  {sidebarOpen ? (
-                    <PanelLeftClose className="size-4" />
-                  ) : (
-                    <PanelLeftOpen className="size-4" />
-                  )}
-                </button>
+              {sidebarOpen && (
+                <p className="pl-1 text-[11px] font-medium text-slate-400">
+                  분석 리포트
+                </p>
+              )}
+              <button
+                onClick={() => setSidebarOpen((v) => !v)}
+                aria-label={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
+                aria-expanded={sidebarOpen}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+                title={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
+              >
+                {sidebarOpen ? (
+                  <PanelLeftClose className="size-4" aria-hidden="true" />
+                ) : (
+                  <PanelLeftOpen className="size-4" aria-hidden="true" />
+                )}
+              </button>
+            </div>
+
+            {/* ── 영상 제목 (제목 자리) ── */}
+            {sidebarOpen && (
+              <div className="px-4 pt-1 pb-3 border-b border-slate-200/70">
+                {videoTitle ? (
+                  <h1 className="text-lg font-bold text-slate-900 leading-tight line-clamp-3">
+                    {videoTitle}
+                  </h1>
+                ) : (
+                  <div className="h-5 w-4/5 rounded bg-slate-100 animate-pulse" />
+                )}
               </div>
+            )}
+
+            {/* ── 네비게이션 ── */}
+            <div
+              className={`px-3 pt-2 pb-3 border-b border-slate-200/70 ${sidebarOpen ? "" : "px-2"}`}
+            >
               <div className="space-y-0.5">
                 {navItems.map((item) => (
                   <button
                     key={item.id}
                     onClick={item.isCurrent ? undefined : item.action}
                     disabled={item.isCurrent}
-                    className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left ${
+                    className={`relative w-full flex items-center gap-2.5 rounded-lg transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${
                       item.isCurrent
-                        ? `bg-blue-50 text-blue-600 cursor-default ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
-                        : `text-gray-600 hover:bg-blue-50 hover:text-blue-600 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
+                        ? `bg-[#1a2b4c]/[0.09] text-[#1a2b4c] font-semibold ring-1 ring-inset ring-[#1a2b4c]/10 cursor-default ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
+                        : `text-slate-600 hover:bg-slate-100 hover:text-slate-900 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
                     }`}
                     title={!sidebarOpen ? item.label : undefined}
                   >
+                    {item.isCurrent && (
+                      <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-[#8ce600]" />
+                    )}
                     {item.icon}
                     {sidebarOpen && (
                       <span className="text-sm font-medium truncate">
@@ -1571,7 +1983,7 @@ ${coaching?.feedbackText ?? "(없음)"}
               className={`px-3 pt-4 pb-3 flex-1 overflow-y-auto ${sidebarOpen ? "" : "px-2"}`}
             >
               {sidebarOpen && (
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
+                <p className="text-[11px] font-semibold text-slate-400 mb-2 px-1">
                   분석 섹션
                 </p>
               )}
@@ -1583,7 +1995,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                       if (!sidebarOpen) setSidebarOpen(true);
                       scrollToSection(sec.id);
                     }}
-                    className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-gray-600 hover:bg-blue-50 hover:text-blue-600 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                    className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
                     title={!sidebarOpen ? sec.label : undefined}
                   >
                     {sec.icon}
@@ -1598,8 +2010,8 @@ ${coaching?.feedbackText ?? "(없음)"}
 
               {/* 플레이어 선택 (사이드바 열렸을 때만) */}
               {sidebarOpen && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">
+                <div className="mt-4 pt-4 border-t border-slate-200/70">
+                  <p className="text-[11px] font-semibold text-slate-400 mb-2 px-1">
                     플레이어
                   </p>
                   <PlayerToggle
@@ -1613,11 +2025,11 @@ ${coaching?.feedbackText ?? "(없음)"}
 
           {/* 계정 관리 */}
           <div
-            className={`shrink-0 border-t border-gray-100 p-3 ${sidebarOpen ? "" : "px-2"}`}
+            className={`shrink-0 border-t border-slate-200/70 p-3 ${sidebarOpen ? "" : "px-2"}`}
           >
             <button
               onClick={() => onNavigate("account")}
-              className={`w-full flex items-center gap-2.5 rounded-lg text-gray-600 hover:bg-blue-50 hover:text-blue-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
               title={!sidebarOpen ? "계정 관리" : undefined}
             >
               <User className="size-4 shrink-0" />
@@ -1629,11 +2041,11 @@ ${coaching?.feedbackText ?? "(없음)"}
 
           {/* 로그아웃 */}
           <div
-            className={`shrink-0 border-t border-gray-100 p-3 ${sidebarOpen ? "" : "px-2"}`}
+            className={`shrink-0 border-t border-slate-200/70 p-3 ${sidebarOpen ? "" : "px-2"}`}
           >
             <button
               onClick={onLogout}
-              className={`w-full flex items-center gap-2.5 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
               title={!sidebarOpen ? "로그아웃" : undefined}
             >
               <LogOut className="size-4 shrink-0" />
@@ -1648,164 +2060,339 @@ ${coaching?.feedbackText ?? "(없음)"}
             메인 콘텐츠
            ══════════════════════════════════════════════════════ */}
         <main className="flex-1 overflow-y-auto" ref={mainScrollRef}>
-          <div className="max-w-5xl mx-auto px-6 py-10">
-            <div className="space-y-6">
-              {/* ── Match Summary ── */}
+          <div className="max-w-6xl mx-auto px-6 py-8 lg:py-10">
+            <div className="space-y-5">
+              {/* ── 페이지 헤더 ── */}
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-400">
+                    분석 리포트
+                  </p>
+                  <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
+                    {videoTitle ?? "경기 분석"}
+                  </h1>
+                </div>
+                <PlayerToggle
+                  active={activePlayer}
+                  onChange={(k) => setActivePlayer(k)}
+                />
+              </div>
+
+              {/* ── 경기 요약 + 히트맵: 가로 2단 ── */}
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
               <section
                 id="section-summary"
-                className="rounded-2xl border border-gray-100 bg-white shadow-sm scroll-mt-6 overflow-hidden"
+                className="flex flex-col rounded-2xl border border-slate-200/70 bg-white scroll-mt-6 overflow-hidden"
               >
-                {/* 헤더 */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
                   <div className="flex items-center gap-2">
-                    <Users className="size-4 text-gray-400" />
-                    <h2 className="text-sm font-bold text-gray-900 uppercase tracking-widest">
-                      경기 결과 요약
+                    <span className="flex size-6 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                      <Users className="size-3.5" aria-hidden="true" />
+                    </span>
+                    <h2 className="text-sm font-semibold text-slate-900">
+                      경기 요약
                     </h2>
                   </div>
                   {!isEditingScore && (
                     <button
                       onClick={handleScoreEditOpen}
-                      className="flex items-center gap-1 text-xs text-gray-400
-                                 border border-gray-100 rounded-lg px-2.5 py-1.5
-                                 hover:bg-gray-50 hover:text-gray-600 transition-colors"
+                      className="flex items-center gap-1 text-xs text-slate-400
+                                 border border-slate-200/70 rounded-lg px-2.5 py-1.5
+                                 hover:bg-slate-50 hover:text-slate-600 transition-colors
+                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
                     >
-                      <Pencil className="size-3" />
+                      <Pencil className="size-3" aria-hidden="true" />
                       점수 수정
                     </button>
                   )}
                 </div>
 
-                {/* 스코어 히어로 */}
-                <div className="px-6 py-6">
+                <div className="flex flex-1 flex-col px-5 py-4">
                   {isEditingScore ? (
                     /* ── 수정 모드 ── */
                     <div className="flex flex-col items-center gap-5">
-                      <div className="flex items-center gap-8">
+                      <div className="flex items-center justify-center gap-5">
                         {(
                           [
-                            { label: "Top",    val: editOpponentScore, setVal: setEditOpponentScore, color: "text-green-600" },
-                            { label: "Bottom", val: editMyScore,       setVal: setEditMyScore,       color: "text-blue-500"  },
+                            {
+                              label: "Bottom",
+                              val: editMyScore,
+                              setVal: setEditMyScore,
+                              color: "text-[#059669]",
+                            },
+                            {
+                              label: "Top",
+                              val: editOpponentScore,
+                              setVal: setEditOpponentScore,
+                              color: "text-[#2563eb]",
+                            },
                           ] as const
                         ).map(({ label, val, setVal, color }) => (
-                          <div key={label} className="flex flex-col items-center gap-2">
-                            <span className={`text-xs font-bold uppercase tracking-wider ${color}`}>
+                          <div
+                            key={label}
+                            className="flex flex-col items-center gap-2"
+                          >
+                            <span className={`text-xs font-semibold ${color}`}>
                               {label}
                             </span>
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => setVal((v: number) => Math.max(0, v - 1))}
-                                className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500
-                                           hover:bg-gray-100 flex items-center justify-center"
-                              >−</button>
-                              <input
-                                type="number" min={0} max={30} value={val}
-                                onChange={(e) =>
-                                  setVal(Math.max(0, Math.min(30, Number(e.target.value))))
+                                onClick={() =>
+                                  setVal((v: number) => Math.max(0, v - 1))
                                 }
-                                className="w-16 text-center text-4xl font-black tabular-nums
-                                           border-b-2 border-blue-500 bg-transparent outline-none
+                                aria-label={`${label} 점수 1 감소`}
+                                className="w-6 h-6 rounded-lg border border-slate-200 text-slate-500
+                                           hover:bg-slate-100 flex items-center justify-center
+                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                min={0}
+                                max={30}
+                                value={val}
+                                inputMode="numeric"
+                                aria-label={`${label} 점수`}
+                                onChange={(e) =>
+                                  setVal(
+                                    Math.max(
+                                      0,
+                                      Math.min(30, Number(e.target.value)),
+                                    ),
+                                  )
+                                }
+                                className="w-16 text-center text-4xl font-bold tabular-nums
+                                           border-b-2 border-[#1a2b4c] bg-transparent outline-none
+                                           focus-visible:border-[#8ce600]
                                            [appearance:textfield]
                                            [&::-webkit-inner-spin-button]:appearance-none"
                               />
                               <button
-                                onClick={() => setVal((v: number) => Math.min(30, v + 1))}
-                                className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500
-                                           hover:bg-gray-100 flex items-center justify-center"
-                              >+</button>
+                                onClick={() =>
+                                  setVal((v: number) => Math.min(30, v + 1))
+                                }
+                                aria-label={`${label} 점수 1 증가`}
+                                className="w-6 h-6 rounded-lg border border-slate-200 text-slate-500
+                                           hover:bg-slate-100 flex items-center justify-center
+                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+                              >
+                                +
+                              </button>
                             </div>
                           </div>
                         ))}
                       </div>
                       {scoreSaveError && (
-                        <p className="text-xs text-red-500">{scoreSaveError}</p>
+                        <p role="alert" className="text-xs text-red-500">
+                          {scoreSaveError}
+                        </p>
                       )}
                       <div className="flex gap-2">
                         <button
                           onClick={handleScoreCancel}
-                          className="flex items-center gap-1 px-4 py-2 text-sm text-gray-500
-                                     border border-gray-200 rounded-lg hover:bg-gray-50"
+                          className="flex items-center gap-1 px-4 py-2 text-sm text-slate-500
+                                     border border-slate-200 rounded-lg hover:bg-slate-50
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
                         >
-                          <X className="size-3.5" />취소
+                          <X className="size-3.5" aria-hidden="true" />
+                          취소
                         </button>
                         <button
                           onClick={handleScoreSave}
                           disabled={isSavingScore}
                           className="flex items-center gap-1 px-4 py-2 text-sm text-white
-                                     bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                     bg-[#1a2b4c] rounded-lg hover:bg-[#243a63] disabled:opacity-50
+                                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/50 focus-visible:ring-offset-1"
                         >
-                          <Check className="size-3.5" />
-                          {isSavingScore ? "저장 중..." : "저장"}
+                          {isSavingScore ? (
+                            <Loader2
+                              className="size-3.5 animate-spin"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Check className="size-3.5" aria-hidden="true" />
+                          )}
+                          {isSavingScore ? "저장 중…" : "저장"}
                         </button>
                       </div>
                     </div>
                   ) : (
-                    /* ── 표시 모드 ── */
+                    /* ── 표시 모드: 결과 배너 → 점유율 → 경기 지표 ── */
                     <>
-                      <div className="flex items-center justify-center gap-8 py-2">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-xs font-bold text-green-600 uppercase tracking-wider">
-                            Top
-                          </span>
-                          <span className="text-5xl font-black text-gray-900 tabular-nums">
-                            {summary.opponentScore}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-center gap-2">
-                          <span className="text-2xl font-light text-gray-300">:</span>
-                          {summary.matchOutcome && (
+                      {/* 결과 배너 (스코어는 작게) */}
+                      {(() => {
+                        const topWon =
+                          summary.matchOutcome === "TOP_WIN" ||
+                          summary.matchOutcome === "LOSE";
+                        const bottomWon =
+                          summary.matchOutcome === "BOTTOM_WIN" ||
+                          summary.matchOutcome === "WIN";
+                        const winColor = topWon
+                          ? "#2563eb"
+                          : bottomWon
+                            ? "#059669"
+                            : "#64748b";
+                        return (
+                          <div
+                            className="flex items-center justify-between rounded-xl px-3.5 py-3"
+                            style={{
+                              backgroundColor: `${winColor}0d`,
+                              boxShadow: `inset 3px 0 0 ${winColor}`,
+                            }}
+                          >
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full
-                                ${(summary.matchOutcome === "TOP_WIN" || summary.matchOutcome === "LOSE")
-                                  ? "bg-green-50 text-green-700"
-                                  : (summary.matchOutcome === "BOTTOM_WIN" || summary.matchOutcome === "WIN")
-                                  ? "bg-blue-50 text-blue-700"
-                                  : "bg-gray-50 text-gray-500"}`}
+                              className="text-sm font-bold"
+                              style={{ color: winColor }}
                             >
-                              {(summary.matchOutcome === "TOP_WIN" || summary.matchOutcome === "LOSE")
+                              {topWon
                                 ? "Top 승"
-                                : (summary.matchOutcome === "BOTTOM_WIN" || summary.matchOutcome === "WIN")
-                                ? "Bottom 승"
-                                : "무승부"}
+                                : bottomWon
+                                  ? "Bottom 승"
+                                  : "무승부"}
                             </span>
-                          )}
+                            <span className="flex items-baseline gap-1.5 text-sm font-bold tabular-nums">
+                              <span className="text-[10px] font-semibold text-slate-400">
+                                B
+                              </span>
+                              <span className="text-[#059669]">
+                                {summary.myScore}
+                              </span>
+                              <span className="text-slate-300">:</span>
+                              <span className="text-[#2563eb]">
+                                {summary.opponentScore}
+                              </span>
+                              <span className="text-[10px] font-semibold text-slate-400">
+                                T
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* 스트로크 점유율 — 양 선수 비교 (다른 카드와 중복 없음) */}
+                      <div className="mt-4">
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                            <Zap className="size-3" aria-hidden="true" />
+                            스트로크 점유율
+                          </p>
+                          <p className="text-[11px] font-semibold tabular-nums text-slate-400">
+                            총 {summary.totalStrokeCount}회
+                          </p>
                         </div>
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">
-                            Bottom
+                        <div
+                          className="flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-slate-100"
+                          role="img"
+                          aria-label={`스트로크 점유율: Bottom ${bottomStrokes}회, Top ${topStrokes}회`}
+                        >
+                          <span
+                            className="rounded-full transition-[width] duration-500"
+                            style={{
+                              width: `${bottomSharePct}%`,
+                              backgroundColor: "#059669",
+                            }}
+                          />
+                          <span
+                            className="flex-1 rounded-full"
+                            style={{ backgroundColor: "#2563eb" }}
+                          />
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-[11px]">
+                          <span className="flex items-center gap-1.5">
+                            <span className="size-1.5 rounded-full bg-[#059669]" />
+                            <span className="font-medium text-slate-500">
+                              Bottom
+                            </span>
+                            <span className="font-bold tabular-nums text-slate-700">
+                              {bottomStrokes}회
+                            </span>
                           </span>
-                          <span className="text-5xl font-black text-gray-900 tabular-nums">
-                            {summary.myScore}
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-bold tabular-nums text-slate-700">
+                              {topStrokes}회
+                            </span>
+                            <span className="font-medium text-slate-500">
+                              Top
+                            </span>
+                            <span className="size-1.5 rounded-full bg-[#2563eb]" />
                           </span>
                         </div>
                       </div>
 
+                      {/* 경기 지표 */}
+                      <dl className="mt-4 border-t border-slate-100 divide-y divide-slate-100">
+                        <div className="flex items-center justify-between py-2.5">
+                          <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                            <Clock className="size-3" aria-hidden="true" />
+                            경기 시간
+                          </dt>
+                          <dd className="text-sm font-bold tabular-nums text-slate-900">
+                            {summary.matchTime}
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between py-2.5">
+                          <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                            <Activity className="size-3" aria-hidden="true" />총
+                            랠리
+                          </dt>
+                          <dd className="text-sm font-bold tabular-nums text-slate-900">
+                            {totalRallies}회
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between py-2.5">
+                          <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                            <TrendingUp className="size-3" aria-hidden="true" />
+                            랠리당 평균 시간
+                          </dt>
+                          <dd className="text-sm font-bold tabular-nums text-slate-900">
+                            {secondsPerRally != null
+                              ? formatDurationKo(secondsPerRally)
+                              : "—"}
+                          </dd>
+                        </div>
+                        <div className="flex items-center justify-between py-2.5 last:pb-0">
+                          <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+                            <Zap className="size-3" aria-hidden="true" />
+                            랠리당 평균 타수
+                          </dt>
+                          <dd className="text-sm font-bold tabular-nums text-slate-900">
+                            {strokesPerRally != null ? `${strokesPerRally}타` : "—"}
+                          </dd>
+                        </div>
+                      </dl>
+
                       {/* 미확정 뱃지 + 랠리결과 토글 */}
-                      {(summary.unknownRallies ?? 0) > 0 && (
-                        <div className="flex items-center justify-center gap-2 mt-4">
+                      {unknownRallies > 0 && (
+                        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100">
                           <div className="relative group">
-                            <span className="text-[11px] font-semibold text-amber-700
+                            <span
+                              className="text-[11px] font-semibold text-amber-700
                                              bg-amber-50 border border-amber-200
-                                             rounded-full px-2.5 py-0.5 tabular-nums cursor-default">
-                              +{summary.unknownRallies}개 미확정
+                                             rounded-full px-2.5 py-0.5 tabular-nums cursor-default"
+                            >
+                              +{unknownRallies}개 미확정
                             </span>
-                            <div className="absolute bottom-7 left-1/2 -translate-x-1/2 w-56
-                                            bg-gray-900 text-white text-[11px] leading-relaxed
+                            <div
+                              className="absolute bottom-7 left-1/2 -translate-x-1/2 w-56
+                                            bg-slate-900 text-white text-[11px] leading-relaxed
                                             rounded-xl px-3 py-2.5 shadow-lg z-20
                                             opacity-0 group-hover:opacity-100 transition-opacity
-                                            pointer-events-none">
-                              인/아웃 판정이 불확실해 점수에 반영되지 않은 랠리입니다.
-                              <span className="block mt-1 text-gray-400 tabular-nums">
-                                전체 {summary.totalRallies ?? "?"}개 중{" "}
-                                {summary.unknownRallies}개 미확정
+                                            pointer-events-none"
+                            >
+                              인/아웃 판정이 불확실해 점수에 반영되지 않은
+                              랠리입니다.
+                              <span className="block mt-1 text-slate-400 tabular-nums">
+                                전체 {totalRallies}개 중{" "}
+                                {unknownRallies}개 미확정
                               </span>
                             </div>
                           </div>
                           <button
                             onClick={() => setRallyDetailOpen((v) => !v)}
-                            className="flex items-center gap-1 text-[11px] text-gray-500
-                                       hover:text-gray-700 px-2 py-0.5 rounded-md
-                                       hover:bg-gray-100 transition-colors"
+                            className="flex items-center gap-1 text-[11px] text-slate-500
+                                       hover:text-slate-700 px-2 py-0.5 rounded-md
+                                       hover:bg-slate-100 transition-colors"
                           >
                             랠리 결과
                             <ChevronDown
@@ -1821,99 +2408,51 @@ ${coaching?.feedbackText ?? "(없음)"}
 
                 {/* 인라인 랠리 결과 아코디언 */}
                 <div
-                  className={`overflow-hidden transition-all duration-300 ease-in-out
+                  className={`overflow-hidden transition-[max-height] duration-300 ease-in-out
                     ${rallyDetailOpen ? "max-h-48" : "max-h-0"}`}
                 >
-                  <div className="border-t border-gray-100 px-6 py-4">
+                  <div className="border-t border-slate-200/70 px-6 py-4">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                      <span className="text-[11px] font-semibold text-slate-400">
                         랠리별 판정 결과
                       </span>
-                      <span className="text-[10px] text-gray-400 tabular-nums">
-                        총 {summary.totalRallies ?? 0}랠리
+                      <span className="text-[10px] text-slate-400 tabular-nums">
+                        총 {totalRallies}랠리
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2 px-3
-                                    bg-gray-50 rounded-xl text-[11px] text-gray-500">
+                    <div
+                      className="flex items-center justify-between py-2 px-3
+                                    bg-slate-50 rounded-xl text-[11px] text-slate-500"
+                    >
                       <span>
                         확인됨{" "}
-                        <span className="font-bold text-gray-700 tabular-nums">
-                          {(summary.totalRallies ?? 0) - (summary.unknownRallies ?? 0)}
+                        <span className="font-bold text-slate-700 tabular-nums">
+                          {totalRallies - unknownRallies}
                         </span>
                         개
                       </span>
-                      <span className="w-px h-3 bg-gray-200" />
+                      <span className="w-px h-3 bg-slate-200" />
                       <span>
                         미확정{" "}
                         <span className="font-bold text-amber-700 tabular-nums">
-                          {summary.unknownRallies ?? 0}
+                          {unknownRallies}
                         </span>
                         개
                       </span>
-                      <span className="w-px h-3 bg-gray-200" />
-                      <span className="text-gray-400">
+                      <span className="w-px h-3 bg-slate-200" />
+                      <span className="text-slate-400">
                         개별 판정 상세는 추후 지원 예정
                       </span>
                     </div>
                   </div>
                 </div>
-
-                {/* 하단 통계 */}
-                <div className="grid grid-cols-2 gap-3 px-6 pb-5 border-t border-gray-50 pt-4">
-                  <div className="flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <Zap className="size-4 text-purple-400 shrink-0" />
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                        총 스트로크
-                      </p>
-                      <p className="text-lg font-black text-purple-600">
-                        {summary.totalStrokeCount}회
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <Clock className="size-4 text-orange-400 shrink-0" />
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
-                        경기 시간
-                      </p>
-                      <p className="text-lg font-black text-orange-600">
-                        {summary.matchTime}
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </section>
-
-              {/* ── 2. Player indicator ── */}
-              <div
-                className="flex items-center justify-end"
-                style={{
-                  background: `${accentColor}10`,
-                  borderRadius: "12px",
-                  padding: "8px 16px",
-                  border: `1px solid ${accentColor}30`,
-                }}
-              >
-                <div
-                  className="flex items-center gap-2 text-xs font-semibold"
-                  style={{ color: accentColor }}
-                >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: accentColor }}
-                  />
-                  {isBottom ? "Bottom Player 분석 중" : "Top Player 분석 중"}
-                </div>
-              </div>
 
               {/* ── 3. Heatmap ── */}
               <div id="section-heatmap" className="scroll-mt-6">
                 <CollapsibleCard
                   title="히트맵"
-                  icon={
-                    <Target className="size-4" style={{ color: accentColor }} />
-                  }
+                  icon={<Target aria-hidden="true" />}
                   onExpand={() => setExpandedPanel("heatmap")}
                 >
                   <BadmintonHeatmapCourt
@@ -1925,16 +2464,22 @@ ${coaching?.feedbackText ?? "(없음)"}
                   />
                 </CollapsibleCard>
               </div>
+              </div>
+              {/* ── 경기 요약 + 히트맵 끝 ── */}
 
               {/* ── 4. Stroke + Ability ── */}
               <div className="grid gap-6 lg:grid-cols-2">
                 <div id="section-stroke" className="scroll-mt-6">
                   <CollapsibleCard
                     title="스트로크 분포"
-                    icon={<Zap className="size-4 text-purple-500" />}
+                    icon={<Zap aria-hidden="true" />}
                     onExpand={() => setExpandedPanel("stroke")}
                   >
-                    <div className="mb-3 h-[200px]">
+                    <div
+                      className="mb-3 h-[200px]"
+                      role="img"
+                      aria-label="선수별 스트로크 종류(스매시·클리어·드롭·드라이브·서브·네트·기타) 사용 횟수 막대 그래프"
+                    >
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={strokeData}
@@ -1962,36 +2507,71 @@ ${coaching?.feedbackText ?? "(없음)"}
                           />
                           <Bar
                             dataKey="count"
+                            fill={accentColor}
                             radius={[8, 8, 0, 0]}
                             barSize={36}
-                          >
-                            {strokeData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Bar>
+                          />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {strokeData.map((stroke) => (
-                        <div
-                          key={stroke.name}
-                          className="flex items-center justify-between rounded-lg px-3 py-2 bg-gray-50 border border-gray-100"
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="h-2 w-2 rounded-full"
-                              style={{ backgroundColor: stroke.color }}
-                            />
-                            <span className="text-xs font-semibold text-gray-600">
+                    {/* 인사이트 요약 */}
+                    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5">
+                      <span className="text-[11px] font-semibold text-slate-400">
+                        주 스트로크
+                      </span>
+                      <span
+                        className="rounded-md px-2 py-0.5 text-xs font-bold"
+                        style={{
+                          backgroundColor: `${accentColor}14`,
+                          color: accentColor,
+                        }}
+                      >
+                        {topStroke.name}
+                      </span>
+                      <span className="text-xs font-bold tabular-nums text-slate-700">
+                        {topStroke.count}회
+                      </span>
+                      <span className="ml-auto text-[11px] font-semibold tabular-nums text-slate-400">
+                        총 {playerStrokeTotal}회
+                      </span>
+                    </div>
+
+                    {/* 정확한 값 표 (차트의 보조) */}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0 sm:grid-cols-2">
+                      {strokeData.map((stroke) => {
+                        const pct =
+                          playerStrokeTotal > 0
+                            ? Math.round(
+                                (stroke.count / playerStrokeTotal) * 100,
+                              )
+                            : 0;
+                        const isTop =
+                          stroke.name === topStroke.name && stroke.count > 0;
+                        return (
+                          <div
+                            key={stroke.name}
+                            className="flex items-center justify-between gap-2 border-b border-slate-100 py-2 last:border-b-0"
+                          >
+                            <span
+                              className={`text-xs ${
+                                isTop
+                                  ? "font-bold text-slate-900"
+                                  : "font-medium text-slate-500"
+                              }`}
+                            >
                               {stroke.name}
                             </span>
+                            <span className="flex items-baseline gap-1.5">
+                              <span className="text-xs font-bold tabular-nums text-slate-700">
+                                {stroke.count}
+                              </span>
+                              <span className="w-8 text-right text-[10px] font-medium tabular-nums text-slate-400">
+                                {pct}%
+                              </span>
+                            </span>
                           </div>
-                          <span className="text-xs font-bold text-gray-500">
-                            {stroke.count}회
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CollapsibleCard>
                 </div>
@@ -1999,10 +2579,14 @@ ${coaching?.feedbackText ?? "(없음)"}
                 <div id="section-ability" className="scroll-mt-6">
                   <CollapsibleCard
                     title="능력치 분석"
-                    icon={<Award className="size-4 text-orange-500" />}
+                    icon={<Award aria-hidden="true" />}
                     onExpand={() => setExpandedPanel("ability")}
                   >
-                    <div className="mb-3 h-[200px] flex items-center justify-center">
+                    <div
+                      className="mb-3 h-[200px] flex items-center justify-center"
+                      role="img"
+                      aria-label="선수 능력치(공격·수비·정확도·스피드·지구력 등) 레이더 차트"
+                    >
                       <ResponsiveContainer width="100%" height="100%">
                         <RadarChart data={abilityData}>
                           <PolarGrid stroke="#f1f5f9" />
@@ -2021,7 +2605,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="flex flex-col divide-y divide-gray-50">
+                    <div className="flex flex-col divide-y divide-slate-100">
                       {abilityData.map((a) => (
                         <AbilityGradeRow
                           key={a.name}
@@ -2037,11 +2621,13 @@ ${coaching?.feedbackText ?? "(없음)"}
               {/* ── 5. AI Briefing ── */}
               <section
                 id="section-briefing"
-                className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden scroll-mt-6"
+                className="rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-6"
               >
-                <div className="flex items-center justify-between border-b border-gray-50 px-6 py-4">
-                  <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                    <Bot className="size-4 text-blue-600" />
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-[#1a2b4c]/[0.08] text-[#1a2b4c]">
+                      <Bot className="size-3.5" aria-hidden="true" />
+                    </span>
                     AI 브리핑
                     <span
                       className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
@@ -2053,16 +2639,29 @@ ${coaching?.feedbackText ?? "(없음)"}
                       {isBottom ? "Bottom Player" : "Top Player"}
                     </span>
                   </h2>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedPanel("briefing")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-                  >
-                    <Maximize2 className="size-3" />
-                    확대
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {aiBriefing && !briefingLoading && (
+                      <button
+                        type="button"
+                        onClick={handleRegenerateBriefing}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+                        title="AI 브리핑 다시 생성 (토큰 사용)"
+                      >
+                        <RefreshCw className="size-3" aria-hidden="true" />
+                        다시 생성
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedPanel("briefing")}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+                    >
+                      <Maximize2 className="size-3" aria-hidden="true" />
+                      확대
+                    </button>
+                  </div>
                 </div>
-                <div className="p-6">
+                <div className="p-5">
                   {briefingLoading && (
                     <div className="flex items-center gap-3">
                       <div className="flex gap-1">
@@ -2081,7 +2680,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                         className="text-sm font-medium"
                         style={{ color: accentColor }}
                       >
-                        AI가 리포트를 요약 중입니다...
+                        AI가 리포트를 요약 중입니다…
                       </span>
                     </div>
                   )}
@@ -2091,9 +2690,12 @@ ${coaching?.feedbackText ?? "(없음)"}
                     </p>
                   )}
                   {!briefingLoading && !briefingError && (
-                    <MarkdownBriefing content={aiBriefing} />
+                    <BriefingSections
+                      content={aiBriefing}
+                      accent={accentColor}
+                    />
                   )}
-                  <p className="mt-4 text-[11px] text-gray-400">
+                  <p className="mt-4 text-[11px] text-slate-400">
                     * 이 브리핑은 경기 분석 데이터를 기반으로 자동 생성됩니다.
                   </p>
                 </div>
@@ -2110,7 +2712,7 @@ ${coaching?.feedbackText ?? "(없음)"}
         title="히트맵 상세 보기"
         onClose={() => setExpandedPanel(null)}
       >
-        <p className="mb-5 text-sm text-gray-500">
+        <p className="mb-5 text-sm text-slate-500">
           {isBottom ? "Bottom Player" : "Top Player"}의 코트 포지션
           히트맵입니다.
         </p>
@@ -2148,11 +2750,12 @@ ${coaching?.feedbackText ?? "(없음)"}
                 tick={{ fontSize: 12, fill: "#94a3b8" }}
               />
               <Tooltip contentStyle={{ borderRadius: 10 }} />
-              <Bar dataKey="count" radius={[10, 10, 0, 0]} barSize={60}>
-                {strokeData.map((entry, index) => (
-                  <Cell key={`exp-cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
+              <Bar
+                dataKey="count"
+                fill={accentColor}
+                radius={[10, 10, 0, 0]}
+                barSize={60}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -2196,7 +2799,7 @@ ${coaching?.feedbackText ?? "(없음)"}
       >
         {briefingLoading && (
           <p className="text-sm animate-pulse" style={{ color: accentColor }}>
-            AI가 리포트를 요약 중입니다...
+            AI가 리포트를 요약 중입니다…
           </p>
         )}
         {briefingError && (
@@ -2205,7 +2808,7 @@ ${coaching?.feedbackText ?? "(없음)"}
           </p>
         )}
         {!briefingLoading && !briefingError && (
-          <MarkdownBriefing content={aiBriefing} />
+          <BriefingSections content={aiBriefing} accent={accentColor} />
         )}
       </Modal>
     </div>

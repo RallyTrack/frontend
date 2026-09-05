@@ -105,7 +105,7 @@ export function VideoItem({
           </div>
         ) : (
           <div className="flex items-center justify-center w-9 h-9 rounded-full bg-white shadow-sm">
-            <Play className="size-4 text-blue-500 ml-0.5" />
+            <Play className="size-4 text-[#1a2b4c] ml-0.5" />
           </div>
         )}
 
@@ -217,9 +217,9 @@ export function VideoItem({
             onClick={() => isReady && onViewVideo(video.id)}
             disabled={!isReady}
             title="영상 보기"
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:translate-y-px ${
               isReady
-                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm shadow-blue-200"
+                ? "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                 : "bg-slate-100 text-slate-400 cursor-not-allowed"
             }`}
           >
@@ -231,9 +231,9 @@ export function VideoItem({
             onClick={() => isReady && onViewReport(video.id)}
             disabled={!isReady}
             title="분석 보기"
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:translate-y-px ${
               isReady
-                ? "bg-violet-600 text-white hover:bg-violet-700 shadow-sm shadow-violet-200"
+                ? "bg-[#1a2b4c] text-white hover:bg-[#243a63] shadow-sm shadow-slate-900/10"
                 : "bg-slate-100 text-slate-400 cursor-not-allowed"
             }`}
           >

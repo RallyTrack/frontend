@@ -66,6 +66,8 @@ interface RawAnalysisResponse {
     bottomPlayerScore?: number;
     topPlayerScore?: number;
     totalHits?: number;
+    unknownRallies?: number;
+    totalRallies?: number;
     players?: {
       top?: RawPlayerReport;
       bottom?: RawPlayerReport;
@@ -261,8 +263,9 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
     opponentScore:    data.summary?.opponentScore    ?? data.topPlayerScore    ?? 0,
     totalStrokeCount: data.summary?.totalStrokeCount ?? data.totalHits         ?? 0,
     matchTime:        data.summary?.matchTime        ?? "분석 완료",
-    unknownRallies:   data.summary?.unknownRallies   ?? 0,
-    totalRallies:     data.summary?.totalRallies     ?? 0,
+    // 백엔드가 summary 밖(top-level)에 실어주는 경우도 있어 폴백을 둔다.
+    unknownRallies:   data.summary?.unknownRallies   ?? data.unknownRallies ?? 0,
+    totalRallies:     data.summary?.totalRallies     ?? data.totalRallies   ?? 0,
   };
 
   const hitsData = data.hitsData;

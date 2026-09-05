@@ -179,3 +179,15 @@
     line-height: 1.5;
   }
 }
+
+/* 접근성: 사용자가 '동작 줄이기'를 켜면 전역 애니메이션/트랜지션 최소화 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
