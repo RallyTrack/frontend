@@ -31,14 +31,9 @@ import {
   PolarGrid,
   PolarAngleAxis,
   Radar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  LabelList,
+  PolarRadiusAxis,
 } from "recharts";
 import ReactMarkdown from "react-markdown";
 
@@ -65,8 +60,8 @@ import {
   NEUTRAL_MARK,
   heatRgb,
   heatOpacity,
+  strokeSliceColor,
 } from "../theme/colors";
-import { niceCountAxis, maxOf } from "../theme/chartScale";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -376,7 +371,9 @@ function CollapsibleCard({
   return (
     <div
       id={sectionId}
-      className="rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-6"
+      // h-full + flex: 나란히 놓인 카드끼리 높이를 맞춘다.
+      // 내용이 적은 카드는 본문이 늘어나고, 하단 요약은 mt-auto로 바닥에 붙는다.
+      className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-6"
     >
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
         <button
@@ -408,13 +405,13 @@ function CollapsibleCard({
         </button>
       </div>
       <div
-        className={`transition-[max-height,opacity] duration-300 ease-in-out ${
+        className={`flex flex-col transition-[max-height,opacity] duration-300 ease-in-out ${
           open
-            ? "max-h-[2000px] opacity-100"
+            ? "max-h-[2000px] flex-1 opacity-100"
             : "max-h-0 opacity-0 overflow-hidden"
         }`}
       >
-        <div className="p-5">{children}</div>
+        <div className="flex flex-1 flex-col p-4">{children}</div>
       </div>
     </div>
   );
@@ -507,32 +504,74 @@ function formatDurationKo(total: number): string {
 }
 
 /**
- * 스트로크 분류 정의 — 차트/표/확대 모달의 단일 출처.
+ * 스트로크 분류 — 업로드 유형(mode)에 따라 종류 수가 다르다.
+ * 차트·표·확대 모달의 단일 출처이며, 화면은 이 배열의 length만 보고 동작한다.
  *
- * TODO: 분류 종류 수가 등급별로 달라진다(아마추어 4종 / 프로 6~9종 예정).
- *   API가 등급이나 분류 목록을 내려주기 시작하면, 이 상수를 함수로 바꿔서
- *   `strokeTaxonomyFor(level)` 형태로 고르면 된다. 소비하는 쪽(strokeData,
- *   막대 두께 계산, 값 표)은 전부 이 배열의 length만 보고 동작하므로
- *   여기만 갈아끼우면 레이아웃은 그대로 맞는다.
- *   types/reportpageType.ts의 strokeTypes도 함께 넓혀야 한다.
+ *   아마추어 4종 — 서브 · 스매시 · 클리어 · 드라이브
+ *   프로     6종 — 서브 · 로브 · 스매시 · 드롭 · 드라이브 · 클리어
+ *
+ * net/others는 어느 쪽에도 없다(구버전 응답 호환 필드). 카드의 "총 N회"는
+ * 여기 나열된 항목의 합이며, 경기 전체 타수는 summary.totalStrokeCount를 쓴다.
  */
-const STROKE_TAXONOMY: { key: keyof PlayerData["strokeTypes"]; label: string }[] = [
-  { key: "smash",  label: "스매시" },
-  { key: "clear",  label: "클리어" },
-  { key: "drop",   label: "드롭" },
-  { key: "drive",  label: "드라이브" },
-  { key: "serve",  label: "서브" },
-  { key: "net",    label: "네트" },
-  { key: "others", label: "기타" },
-];
+type StrokeMode = "amateur" | "pro";
+
+const STROKE_TAXONOMY: Record<
+  StrokeMode,
+  { key: keyof PlayerData["strokeTypes"]; label: string }[]
+> = {
+  amateur: [
+    { key: "serve", label: "서브" },
+    { key: "smash", label: "스매시" },
+    { key: "clear", label: "클리어" },
+    { key: "drive", label: "드라이브" },
+  ],
+  pro: [
+    { key: "serve", label: "서브" },
+    { key: "lob", label: "로브" },
+    { key: "smash", label: "스매시" },
+    { key: "drop", label: "드롭" },
+    { key: "drive", label: "드라이브" },
+    { key: "clear", label: "클리어" },
+  ],
+};
+
+/** 프로 분류에만 등장하는 종류 — 유형 판별의 근거가 된다. */
+const PRO_ONLY_STROKES = ["lob", "drop"] as const;
 
 /**
- * 막대 두께: 종류 수가 바뀌어도 간격이 어색해지지 않게 계산한다.
- * (고정 px로 두면 4종일 때 휑하고 9종일 때 서로 붙는다)
+ * 업로드 유형 판별.
+ *
+ * 업로드할 때 mode("amateur" | "pro")를 보내지만 조회 API가 그 값을 다시
+ * 내려주는지 확정되지 않았다. 그래서 응답에서 건질 수 있는 단서를 순서대로 본다.
+ *
+ *   1) 응답에 mode/playerType이 실려 있으면 그대로 신뢰
+ *   2) 개별 타격(hitsData)의 strokeType에 lob/drop이 있으면 프로
+ *   3) 전부 아니면 아마추어
+ *
+ * ※ 예전에는 "strokeTypes에 lob/drop 키가 있으면 프로"도 봤는데,
+ *   백엔드가 mode와 무관하게 8개 키를 항상 내려줘서 모든 영상이 프로로
+ *   판정됐다. 키 존재는 신호가 아니다.
+ *
+ * 백엔드가 mode를 확정해서 내려주기 시작하면 1)만 남기고 나머지는 지워도 된다.
  */
-function strokeBarSize(count: number, slotWidth: number): number {
-  if (count <= 0) return 24;
-  return Math.round(Math.min(slotWidth, Math.max(14, 320 / count)));
+function resolveStrokeMode(
+  hints: ReportResponse["data"]["modeHints"] | undefined,
+  strokes: PlayerData["strokeTypes"][],
+): StrokeMode {
+  if (hints?.declared) return hints.declared;
+
+  const hitTypes = hints?.hitStrokeTypes ?? [];
+  if (hitTypes.some((t) => PRO_ONLY_STROKES.some((p) => t.includes(p)))) {
+    return "pro";
+  }
+
+  // hitsData가 없는 응답을 대비한 폴백. 집계는 이제 개별 타격에서 다시 세므로
+  // 여기 값도 실제 lob/drop 횟수다.
+  const proOnlyCount = strokes.reduce(
+    (sum, st) => sum + (Number(st.lob) || 0) + (Number(st.drop) || 0),
+    0,
+  );
+  return proOnlyCount > 0 ? "pro" : "amateur";
 }
 
 /** 타격 마커 색의 하한(0~1). 저빈도 지점도 코트 위에서 보이게 한다. */
@@ -1310,6 +1349,12 @@ const GRADE_THRESHOLDS: Array<{
   { min: 0, grade: "D", color: "#be123c", bg: "#fff1f2" },
 ];
 
+/**
+ * 레이더 격자 링을 놓을 지점 — 등급 경계와 일치시킨다.
+ * GRADE_THRESHOLDS의 min값(85·70·50·30)에 바깥 테두리 100을 더한 것.
+ */
+const GRADE_RING_TICKS = [30, 50, 70, 85, 100];
+
 function scoreToGrade(value: number): {
   grade: string;
   color: string;
@@ -1329,22 +1374,227 @@ const ABILITY_DESCRIPTIONS: Record<string, string> = {
   수비력: "빠른 샷을 정확하게 받아내는 대처 능력",
 };
 
-function AbilityGradeRow({ label, value }: { label: string; value: number }) {
-  const { grade, color, bg } = scoreToGrade(value);
+/**
+ * 스트로크 분포 — 도넛 + 범례.
+ *
+ * 막대가 아니라 도넛인 이유: 이 카드가 답하는 질문이 "전체 타수 중 무엇을
+ * 얼마나 썼나"라는 구성비이기 때문이다. 막대로 그리면 한 번도 안 쓴 분류가
+ * 빈 칸 + "0%"로 남아 오히려 눈에 띄는데, 도넛은 조각이 아예 생기지 않고
+ * 범례에만 흐리게 남아 존재는 알리되 강조하지 않는다.
+ *
+ * 색은 선수색 한 계열의 명도 램프(strokeSliceColor)만 쓴다. 팔레트를 늘리지
+ * 않으면서 조각을 구분하기 위해서다. 단계는 분류 순서에 고정 — 값 크기에 따라
+ * 색이 바뀌면 선수를 바꿀 때마다 같은 스트로크가 다른 색이 된다.
+ */
+function StrokeDonut({
+  rows,
+  total,
+  player,
+  size = "sm",
+}: {
+  rows: { name: string; count: number }[];
+  total: number;
+  player: PlayerKey;
+  size?: "sm" | "lg";
+}) {
+  const lg = size === "lg";
+  // 카드용(sm)도 넉넉히 잡는다. 옆 능력치 카드와 높이를 맞추면 세로 여유가
+  // 생기는데, 도넛이 작으면 그 공간이 그대로 빈자리로 남는다.
+  const box = lg ? 200 : 164;
+  const c = box / 2;
+  const R = lg ? 82 : 68;
+  const r = lg ? 52 : 43;
+
+  // 조각 색: 분류 순서대로 진함 → 연함
+  const colorOf = (i: number) => strokeSliceColor(player, i, rows.length);
+
+  const drawn = rows
+    .map((row, i) => ({ ...row, i }))
+    .filter((row) => row.count > 0);
+  const onlyOne = drawn.length === 1;
+
+  let a0 = -Math.PI / 2;
+  const slices = drawn.map((row) => {
+    const ang = (row.count / total) * Math.PI * 2;
+    const a1 = a0 + ang;
+    const large = ang > Math.PI ? 1 : 0;
+    const d = [
+      `M ${c + R * Math.cos(a0)} ${c + R * Math.sin(a0)}`,
+      `A ${R} ${R} 0 ${large} 1 ${c + R * Math.cos(a1)} ${c + R * Math.sin(a1)}`,
+      `L ${c + r * Math.cos(a1)} ${c + r * Math.sin(a1)}`,
+      `A ${r} ${r} 0 ${large} 0 ${c + r * Math.cos(a0)} ${c + r * Math.sin(a0)}`,
+      "Z",
+    ].join(" ");
+    a0 = a1;
+    return { key: row.name, d, color: colorOf(row.i) };
+  });
+
   return (
-    <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors">
-      <span
-        className="shrink-0 w-8 text-center text-xs font-bold py-0.5 rounded-md"
-        style={{ color, background: bg }}
+    <div className={`flex items-center ${lg ? "gap-8" : "gap-4"}`}>
+      {/* 값은 옆 범례가 글자로 전부 전달하므로 그림은 보조 표현이다 */}
+      <svg
+        viewBox={`0 0 ${box} ${box}`}
+        style={{ width: box }}
+        className="shrink-0"
+        aria-hidden="true"
       >
-        {grade}
-      </span>
-      <span className="shrink-0 w-14 text-xs font-semibold text-slate-600">
-        {label}
-      </span>
-      <span className="flex-1 text-xs text-slate-600 leading-snug">
-        {ABILITY_DESCRIPTIONS[label] ?? ""}
-      </span>
+        {total === 0 ? (
+          <circle
+            cx={c}
+            cy={c}
+            r={(R + r) / 2}
+            fill="none"
+            stroke="#f1f5f9"
+            strokeWidth={R - r}
+          />
+        ) : onlyOne ? (
+          // 100% 한 조각은 호(arc)로 그리면 시작·끝이 같아 사라진다 → 링으로
+          <circle
+            cx={c}
+            cy={c}
+            r={(R + r) / 2}
+            fill="none"
+            stroke={colorOf(0)}
+            strokeWidth={R - r}
+          />
+        ) : (
+          slices.map((sl) => (
+            <path
+              key={sl.key}
+              d={sl.d}
+              fill={sl.color}
+              stroke="#fff"
+              strokeWidth="2"
+            />
+          ))
+        )}
+        <text
+          x={c}
+          y={c - (lg ? 2 : 1)}
+          textAnchor="middle"
+          className="fill-slate-900"
+          fontSize={lg ? 30 : 25}
+          fontWeight={700}
+        >
+          {total}
+        </text>
+        <text
+          x={c}
+          y={c + (lg ? 20 : 15)}
+          textAnchor="middle"
+          className="fill-slate-400"
+          fontSize={lg ? 13 : 11}
+        >
+          총 타수
+        </text>
+      </svg>
+
+      <ul className={`min-w-0 flex-1 ${lg ? "space-y-2.5" : "space-y-2"}`}>
+        {rows.map((row, i) => {
+          const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
+          const zero = row.count === 0;
+          return (
+            <li
+              key={row.name}
+              className={`grid grid-cols-[0.5rem_1fr_auto] items-center gap-2.5 ${
+                lg ? "text-sm" : "text-xs"
+              }`}
+            >
+              <span
+                className="size-2 shrink-0 rounded-sm"
+                style={{ backgroundColor: zero ? "#e2e8f0" : colorOf(i) }}
+                aria-hidden="true"
+              />
+              <span
+                className={`truncate font-medium ${
+                  zero ? "text-slate-300" : "text-slate-600"
+                }`}
+              >
+                {row.name}
+              </span>
+              <span
+                className={`tabular-nums ${
+                  zero
+                    ? "font-medium text-slate-300"
+                    : "font-bold text-slate-900"
+                }`}
+              >
+                {row.count}회{" "}
+                <span
+                  className={`${lg ? "text-xs" : "text-[10px]"} font-medium ${
+                    zero ? "text-slate-300" : "text-slate-400"
+                  }`}
+                >
+                  {pct}%
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * 능력치 요약 칩 + 설명 슬롯.
+ *
+ * 원점수(0~100)를 노출하지 않는 이유: 산출식이 정밀하지 않은데 두 자리 숫자를
+ * 내걸면 실제보다 정확한 척이 된다. 등급(S~D)은 같은 정보를 과장 없이 전한다.
+ *
+ * 항목 설명은 예전엔 확대해야만 보였다. 칩마다 말풍선을 띄우는 대신 아래에
+ * 고정 슬롯을 두고 hover·focus한 항목의 설명을 채운다. 좁은 카드에서 말풍선이
+ * 넘치지 않고, 키보드로도 읽히며, 아무것도 안 건드렸을 때는 가장 낮은 등급
+ * 항목을 기본으로 보여줘서 hover 없이도 쓸모가 있다.
+ */
+function AbilityChips({ items }: { items: { name: string; value: number }[] }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+  const weakest = items.reduce(
+    (lo, a) => (a.value < lo.value ? a : lo),
+    items[0],
+  );
+  const shown = hovered ?? weakest?.name ?? "";
+
+  return (
+    <div className="mt-auto">
+      <div className="grid grid-cols-5 gap-1.5">
+        {items.map((a) => {
+          const { grade, color, bg } = scoreToGrade(a.value);
+          const active = shown === a.name;
+          return (
+            <button
+              key={a.name}
+              type="button"
+              onMouseEnter={() => setHovered(a.name)}
+              onMouseLeave={() => setHovered(null)}
+              onFocus={() => setHovered(a.name)}
+              onBlur={() => setHovered(null)}
+              aria-label={`${a.name} ${grade}등급. ${
+                ABILITY_DESCRIPTIONS[a.name] ?? ""
+              }`}
+              className={`flex flex-col items-center gap-1.5 rounded-xl px-1 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 ${
+                active ? "bg-slate-100" : "bg-slate-50 hover:bg-slate-100"
+              }`}
+            >
+              <span className="text-[10px] font-medium text-slate-400">
+                {a.name}
+              </span>
+              <span
+                className="flex size-6 items-center justify-center rounded-lg text-xs font-bold"
+                style={{ color, background: bg }}
+              >
+                {grade}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {/* 높이를 고정해 hover할 때 카드가 흔들리지 않게 한다 */}
+      <p className="mt-3 min-h-[3rem] text-xs leading-relaxed text-slate-600">
+        <span className="font-semibold text-slate-800">{shown}</span>
+        {shown ? " · " : ""}
+        {ABILITY_DESCRIPTIONS[shown] ?? ""}
+      </p>
     </div>
   );
 }
@@ -1383,14 +1633,19 @@ function RadarTooltip({
   } = payload[0];
   const { grade, color, bg } = scoreToGrade(value);
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg">
-      <p className="text-xs font-semibold text-slate-600 mb-1">{name}</p>
-      <span
-        className="text-xs font-bold px-2 py-0.5 rounded-md"
-        style={{ color, background: bg }}
-      >
-        {grade}
-      </span>
+    <div className="max-w-[220px] rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg">
+      <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-slate-700">
+        {name}
+        <span
+          className="rounded-md px-2 py-0.5 text-xs font-bold"
+          style={{ color, background: bg }}
+        >
+          {grade}
+        </span>
+      </p>
+      <p className="text-[11px] leading-relaxed text-slate-500">
+        {ABILITY_DESCRIPTIONS[name] ?? ""}
+      </p>
     </div>
   );
 }
@@ -1607,15 +1862,22 @@ export function AnalysisReportPage({
           mobility: scoreToGrade(ability.mobility).grade,
           consistency: scoreToGrade(ability.consistency).grade,
         };
-        // 현재 대부분의 타격은 others로 집계됨 (AI stroke 분류 미완성)
-        const playerStrokeTotal =
-          (stroke.smash ?? 0) +
-          (stroke.clear ?? 0) +
-          (stroke.drop ?? 0) +
-          (stroke.drive ?? 0) +
-          (stroke.serve ?? 0) +
-          (stroke.net ?? 0) +
-          (stroke.others ?? 0);
+        // 화면에 그리는 분류와 같은 기준으로 집계한다.
+        // (업로드 유형에 따라 아마추어 4종 / 프로 6종)
+        const promptMode = resolveStrokeMode(report.data.modeHints, [
+          report.data.players.bottom.strokeTypes,
+          report.data.players.top.strokeTypes,
+        ]);
+        const promptStrokes = STROKE_TAXONOMY[promptMode].map(
+          ({ key, label }) => ({
+            label,
+            count: Number(stroke[key]) || 0,
+          }),
+        );
+        const playerStrokeTotal = promptStrokes.reduce(
+          (a, x) => a + x.count,
+          0,
+        );
 
         const prompt = `
 당신은 전문 배드민턴 코치입니다.
@@ -1628,7 +1890,8 @@ export function AnalysisReportPage({
 
 [${playerLabel} 개인 스트로크]
 - 개인 스트로크 합계: ${playerStrokeTotal}회
-- Smash: ${stroke.smash}회, Clear: ${stroke.clear}회, Drop: ${stroke.drop}회, Drive: ${stroke.drive}회, Serve: ${stroke.serve}회, Net: ${stroke.net}회, Others(미분류): ${stroke.others}회
+- 분류 체계: ${promptMode === "pro" ? "프로 6종" : "아마추어 4종"}
+- ${promptStrokes.map((x) => `${x.label}: ${x.count}회`).join(", ")}
 
 [${playerLabel} 능력치 등급 (S > A > B > C > D)]
 - 공격성 ${abilityGrades.aggression}등급: 전체 타격 중 스매시 비율
@@ -1694,10 +1957,13 @@ ${coaching?.feedbackText ?? "(없음)"}
     const summary = report.data.summary;
     const playerData = report.data.players[activePlayer];
     const heatmapZones = buildZones(playerData.positionAnalysis.heatmapData);
-    // 스트로크 분류 — STROKE_TAXONOMY(파일 상단) 하나만 고치면
-    // 차트·표·확대 모달이 모두 따라온다. 프로/아마추어로 종류 수가 달라질 때
-    // 여기서 분기하면 된다. 자세한 계획은 STROKE_TAXONOMY 주석 참고.
-    const strokeData = STROKE_TAXONOMY.map(({ key, label }) => ({
+    // 스트로크 분류 — 업로드 유형(아마추어 4종 / 프로 6종)에 따라 달라진다.
+    // 양쪽 선수는 같은 영상이므로 mode도 하나다.
+    const strokeMode = resolveStrokeMode(report.data.modeHints, [
+      report.data.players.bottom.strokeTypes,
+      report.data.players.top.strokeTypes,
+    ]);
+    const strokeData = STROKE_TAXONOMY[strokeMode].map(({ key, label }) => ({
       name: label,
       count: Number(playerData.strokeTypes[key]) || 0,
     }));
@@ -1715,14 +1981,12 @@ ${coaching?.feedbackText ?? "(없음)"}
     const accentText = PLAYER_COLOR_STRONG[activePlayer];  // 글자·아이콘 (AA)
 
     // ── 양 선수 스트로크 합계 (경기 요약 카드: 점유율 비교용) ──
+    // 카드에 그리는 분류와 같은 기준으로 세야 "총 N회"가 서로 어긋나지 않는다.
     const sumStrokes = (p: (typeof report.data.players)["top"]) =>
-      (p.strokeTypes.smash ?? 0) +
-      (p.strokeTypes.clear ?? 0) +
-      (p.strokeTypes.drop ?? 0) +
-      (p.strokeTypes.drive ?? 0) +
-      (p.strokeTypes.serve ?? 0) +
-      (p.strokeTypes.net ?? 0) +
-      (p.strokeTypes.others ?? 0);
+      STROKE_TAXONOMY[strokeMode].reduce(
+        (sum, { key }) => sum + (Number(p.strokeTypes[key]) || 0),
+        0,
+      );
     const bottomStrokes = sumStrokes(report.data.players.bottom);
     const topStrokes = sumStrokes(report.data.players.top);
     const strokeTotalBoth = bottomStrokes + topStrokes;
@@ -1758,7 +2022,6 @@ ${coaching?.feedbackText ?? "(없음)"}
     // ── 선택 선수의 주 스트로크 (기타 제외) ──
     // 건수 축: 소수 눈금 없이, 총량에 따라 단위가 자동으로 커진다.
     // 카드/확대 모달 양쪽이 같은 눈금을 써야 하므로 여기서 한 번만 계산한다.
-    const strokeAxis = niceCountAxis(maxOf(strokeData, (d) => d.count));
 
     const namedStrokes = strokeData.filter((s) => s.name !== "기타");
     const playerStrokeTotal = strokeData.reduce((a, s) => a + s.count, 0);
@@ -1770,8 +2033,8 @@ ${coaching?.feedbackText ?? "(없음)"}
     return {
       summary,
       heatmapZones,
+      strokeMode,
       strokeData,
-      strokeAxis,
       abilityData,
       accentColor,
       accentText,
@@ -1949,8 +2212,8 @@ ${coaching?.feedbackText ?? "(없음)"}
   const {
     summary,
     heatmapZones,
+    strokeMode,
     strokeData,
-    strokeAxis,
     abilityData,
     accentColor,
     accentText,
@@ -2640,67 +2903,30 @@ ${coaching?.feedbackText ?? "(없음)"}
 
               {/* ── 4. Stroke + Ability ── */}
               <div className="grid gap-6 lg:grid-cols-2">
-                <div id="section-stroke" className="scroll-mt-6">
+                <div id="section-stroke" className="h-full scroll-mt-6">
                   <CollapsibleCard
                     title="스트로크 분포"
                     icon={<Zap aria-hidden="true" />}
                     onExpand={() => setExpandedPanel("stroke")}
                   >
-                    <div
-                      className="mb-3 h-[200px]"
-                      role="img"
-                      aria-label="선수별 스트로크 종류(스매시·클리어·드롭·드라이브·서브·네트·기타) 사용 횟수 막대 그래프"
-                    >
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={strokeData}
-                          // top 여백 0이면 최상단 눈금 라벨이 SVG 밖으로 나가지
-                          // 않으려고 아래로 밀려서, 격자선은 균일한데 라벨 간격만
-                          // 마지막 칸이 좁아 보인다. 라벨 반높이 이상을 확보한다.
-                          margin={{ top: 12, right: 16, left: -20, bottom: 0 }}
-                        >
-                          <CartesianGrid vertical={false} stroke="#f1f5f9" />
-                          <XAxis
-                            dataKey="name"
-                            axisLine={false}
-                            tickLine={false}
-                            interval={0}
-                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                          />
-                          <YAxis
-                            axisLine={false}
-                            tickLine={false}
-                            allowDecimals={false}
-                            domain={strokeAxis.domain}
-                            ticks={strokeAxis.ticks}
-                            tick={{ fontSize: 11, fill: "#94a3b8" }}
-                          />
-                          <Tooltip
-                            contentStyle={{
-                              borderRadius: 10,
-                              border: "1px solid #e5e7eb",
-                              fontSize: 12,
-                            }}
-                            cursor={{ fill: "rgba(0,0,0,0.03)" }}
-                          />
-                          <Bar
-                            dataKey="count"
-                            fill={accentColor}
-                            radius={[8, 8, 0, 0]}
-                            barSize={strokeBarSize(strokeData.length, 44)}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    {/* 분류 종류 수는 업로드 유형에 따라 4종/6종으로 달라진다 */}
+                    <div className="flex flex-1 items-center justify-center min-h-[160px]">
+                    <StrokeDonut
+                      rows={strokeData}
+                      total={playerStrokeTotal}
+                      player={activePlayer}
+                    />
                     </div>
+
                     {/* 인사이트 요약 */}
-                    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
                       <span className="text-[11px] font-semibold text-slate-400">
                         주 스트로크
                       </span>
                       <span className="flex items-center gap-1.5 rounded-md bg-white px-2 py-0.5 text-xs font-bold text-slate-900 ring-1 ring-slate-200">
                         <span
                           className="size-1.5 rounded-full"
-                          style={{ backgroundColor: PLAYER_COLOR[activePlayer] }}
+                          style={{ backgroundColor: accentColor }}
                           aria-hidden="true"
                         />
                         {topStroke.name}
@@ -2708,89 +2934,61 @@ ${coaching?.feedbackText ?? "(없음)"}
                       <span className="text-xs font-bold tabular-nums text-slate-700">
                         {topStroke.count}회
                       </span>
-                      <span className="ml-auto text-[11px] font-semibold tabular-nums text-slate-400">
-                        총 {playerStrokeTotal}회
+                      {/* 총 타수는 도넛 가운데에 있으므로 여기서는 빼고,
+                          분류 체계만 밝힌다. */}
+                      <span className="ml-auto text-[11px] font-semibold text-slate-400">
+                        {strokeMode === "pro" ? "프로 6종" : "아마추어 4종"}
                       </span>
-                    </div>
-
-                    {/* 정확한 값 표 (차트의 보조) */}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0 sm:grid-cols-2">
-                      {strokeData.map((stroke) => {
-                        const pct =
-                          playerStrokeTotal > 0
-                            ? Math.round(
-                                (stroke.count / playerStrokeTotal) * 100,
-                              )
-                            : 0;
-                        const isTop =
-                          stroke.name === topStroke.name && stroke.count > 0;
-                        return (
-                          <div
-                            key={stroke.name}
-                            className="flex items-center justify-between gap-2 border-b border-slate-100 py-2 last:border-b-0"
-                          >
-                            <span
-                              className={`text-xs ${
-                                isTop
-                                  ? "font-bold text-slate-900"
-                                  : "font-medium text-slate-500"
-                              }`}
-                            >
-                              {stroke.name}
-                            </span>
-                            <span className="flex items-baseline gap-1.5">
-                              <span className="text-xs font-bold tabular-nums text-slate-700">
-                                {stroke.count}
-                              </span>
-                              <span className="w-8 text-right text-[10px] font-medium tabular-nums text-slate-400">
-                                {pct}%
-                              </span>
-                            </span>
-                          </div>
-                        );
-                      })}
                     </div>
                   </CollapsibleCard>
                 </div>
 
-                <div id="section-ability" className="scroll-mt-6">
+                <div id="section-ability" className="h-full scroll-mt-6">
                   <CollapsibleCard
                     title="능력치 분석"
                     icon={<Award aria-hidden="true" />}
                     onExpand={() => setExpandedPanel("ability")}
                   >
                     <div
-                      className="mb-3 h-[200px] flex items-center justify-center"
+                      className="mb-3 flex min-h-[220px] flex-1 items-center justify-center"
                       role="img"
-                      aria-label="선수 능력치(공격·수비·정확도·스피드·지구력 등) 레이더 차트"
+                      aria-label={`능력치 등급 레이더 차트. ${abilityData
+                        .map((a) => `${a.name} ${scoreToGrade(a.value).grade}등급`)
+                        .join(", ")}`}
                     >
                       <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart data={abilityData}>
-                          <PolarGrid stroke="#f1f5f9" />
+                        <RadarChart data={abilityData} outerRadius="68%">
+                          {/* 격자가 너무 옅으면 오각형이 허공에 뜬 것처럼 보인다 */}
+                          <PolarGrid stroke="#e2e8f0" />
                           <PolarAngleAxis
                             dataKey="name"
-                            tick={{ fontSize: 10, fill: "#94a3b8" }}
+                            tick={{ fontSize: 11, fill: "#64748b" }}
+                          />
+                          {/* 축을 0~100으로 고정하고, 링을 등급 경계(30·50·70·85)에
+                              놓는다. 이러면 격자가 단순 눈금이 아니라 "어느 등급
+                              구간에 있나"를 읽는 기준선이 된다.
+                              (없으면 recharts가 그 선수의 최댓값에 맞춰 자동
+                              스케일해서 전 항목 40점대인 선수도 꽉 차 보인다) */}
+                          <PolarRadiusAxis
+                            domain={[0, 100]}
+                            ticks={GRADE_RING_TICKS}
+                            tick={false}
+                            axisLine={false}
                           />
                           <Radar
                             name="능력치"
                             dataKey="value"
                             stroke={accentColor}
+                            strokeWidth={2}
                             fill={accentColor}
-                            fillOpacity={0.35}
+                            fillOpacity={0.32}
+                            dot={{ r: 3, fill: accentColor, strokeWidth: 0 }}
                           />
                           <Tooltip content={<RadarTooltip />} />
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="flex flex-col divide-y divide-slate-100">
-                      {abilityData.map((a) => (
-                        <AbilityGradeRow
-                          key={a.name}
-                          label={a.name}
-                          value={a.value}
-                        />
-                      ))}
-                    </div>
+                    <AbilityChips items={abilityData} />
                   </CollapsibleCard>
                 </div>
               </div>
@@ -2907,49 +3105,27 @@ ${coaching?.feedbackText ?? "(없음)"}
         title="스트로크 분포 상세"
         onClose={() => setExpandedPanel(null)}
       >
-        <div className="h-[420px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={strokeData}
-              margin={{ top: 20, right: 20, left: 0, bottom: 20 }}
-            >
-              <CartesianGrid vertical={false} stroke="#e5edf5" />
-              <XAxis
-                dataKey="name"
-                axisLine={false}
-                tickLine={false}
-                interval={0}
-                tick={{ fontSize: 13, fill: "#64748b" }}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                allowDecimals={false}
-                domain={strokeAxis.domain}
-                ticks={strokeAxis.ticks}
-                tick={{ fontSize: 12, fill: "#94a3b8" }}
-              />
-              <Tooltip contentStyle={{ borderRadius: 10 }} />
-              <Bar
-                dataKey="count"
-                fill={accentColor}
-                radius={[10, 10, 0, 0]}
-                barSize={strokeBarSize(strokeData.length, 72)}
-              >
-                {/* 카드와 달리 확대 모달에는 값 표가 없다. 막대 색만으로
-                    읽히지 않도록 각 막대에 값을 직접 붙인다. */}
-                <LabelList
-                  dataKey="count"
-                  position="top"
-                  offset={8}
-                  fill="#475569"
-                  fontSize={12}
-                  fontWeight={700}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="mb-5 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+          <span className="text-xs font-semibold text-slate-500">
+            {strokeMode === "pro"
+              ? "프로 분류 6종 (서브 · 로브 · 스매시 · 드롭 · 드라이브 · 클리어)"
+              : "아마추어 분류 4종 (서브 · 스매시 · 클리어 · 드라이브)"}
+          </span>
+          <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+            <span
+              className="size-1.5 rounded-full"
+              style={{ backgroundColor: accentColor }}
+              aria-hidden="true"
+            />
+            주 스트로크 {topStroke.name} {topStroke.count}회
+          </span>
         </div>
+        <StrokeDonut
+          rows={strokeData}
+          total={playerStrokeTotal}
+          player={activePlayer}
+          size="lg"
+        />
       </Modal>
 
       <Modal
@@ -2959,18 +3135,26 @@ ${coaching?.feedbackText ?? "(없음)"}
       >
         <div className="h-[320px] mb-6">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={abilityData}>
-              <PolarGrid stroke="#e5edf5" />
+            <RadarChart data={abilityData} outerRadius="72%">
+              <PolarGrid stroke="#dbe4f0" />
               <PolarAngleAxis
                 dataKey="name"
-                tick={{ fontSize: 13, fill: "#64748b" }}
+                tick={{ fontSize: 13, fill: "#475569" }}
+              />
+              <PolarRadiusAxis
+                domain={[0, 100]}
+                ticks={GRADE_RING_TICKS}
+                tick={false}
+                axisLine={false}
               />
               <Radar
                 name="능력치"
                 dataKey="value"
                 stroke={accentColor}
+                strokeWidth={2}
                 fill={accentColor}
-                fillOpacity={0.4}
+                fillOpacity={0.32}
+                dot={{ r: 4, fill: accentColor, strokeWidth: 0 }}
               />
               <Tooltip content={<RadarTooltip />} />
             </RadarChart>
