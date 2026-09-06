@@ -373,7 +373,7 @@ function CollapsibleCard({
       id={sectionId}
       // h-full + flex: 나란히 놓인 카드끼리 높이를 맞춘다.
       // 내용이 적은 카드는 본문이 늘어나고, 하단 요약은 mt-auto로 바닥에 붙는다.
-      className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-6"
+      className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-20"
     >
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
         <button
@@ -1803,11 +1803,35 @@ export function AnalysisReportPage({
     briefing: useRef<HTMLDivElement>(null),
   };
 
+  /**
+   * 섹션 카드로 이동한다.
+   *
+   * 스크롤이 어느 요소에서 일어나는지는 내용 길이에 따라 달라진다(본문일 수도,
+   * 그 바깥일 수도 있다). 그래서 컨테이너를 직접 고르지 않고 scrollIntoView에
+   * 맡긴다 — 직접 scrollTop을 계산했더니 스크롤이 아예 먹지 않는 경우가 있었다.
+   *
+   * 다만 레이더 차트(ResponsiveContainer)가 마운트 뒤에 높이를 잡는 탓에,
+   * 부드러운 스크롤이 도는 동안 위쪽이 늘어나 목표가 밀린다. 카드 윗부분이
+   * 잘린 채 멈추는 이유다. 그래서 스크롤이 끝날 즈음 같은 자리로 한 번 더
+   * 맞춘다(애니메이션 없이 붙이므로 눈에 띄지 않는다).
+   * 카드 위 여백은 각 섹션의 scroll-mt-* 가 담당한다.
+   */
   const scrollToSection = (id: SidebarSectionId) => {
-    const el = document.getElementById(`section-${id}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    // 경기 결과와 히트맵은 같은 행에 나란히 있고 본문 맨 위다. 카드 위에
+    // 딱 붙이면 답답해서, 페이지 머리말까지 함께 보이도록 최상단으로 올린다.
+    const atTop = id === "summary" || id === "heatmap";
+    // 스트로크·능력치는 좌우로 짝을 이루는 중간 크기 카드라 화면 가운데가 편하다.
+    // AI 브리핑은 길어서 가운데에 두면 윗부분이 잘리므로 위쪽 정렬.
+    const block: ScrollLogicalPosition =
+      id === "stroke" || id === "ability" ? "center" : "start";
+
+    const el = document.getElementById(atTop ? "report-top" : `section-${id}`);
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: "smooth", block });
+    window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "auto", block });
+    }, 420);
   };
 
   const handleScoreEditOpen = () => {
@@ -2562,7 +2586,12 @@ ${coaching?.feedbackText ?? "(없음)"}
           <div className="max-w-6xl mx-auto px-6 py-8 lg:py-10">
             <div className="space-y-5">
               {/* ── 페이지 헤더 ── */}
-              <div className="flex flex-wrap items-end justify-between gap-4">
+              {/* 경기 결과·히트맵으로 이동할 때의 착지점. 본문 맨 위라
+                  scroll-mt만큼 위로 잡으면 0으로 잘려 최상단이 된다. */}
+              <div
+                id="report-top"
+                className="flex flex-wrap items-end justify-between gap-4 scroll-mt-20"
+              >
                 <div>
                   <p className="text-sm font-medium text-slate-400">
                     분석 리포트
@@ -2581,7 +2610,7 @@ ${coaching?.feedbackText ?? "(없음)"}
               <div className="grid gap-5 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
               <section
                 id="section-summary"
-                className="flex flex-col rounded-2xl border border-slate-200/70 bg-white scroll-mt-6 overflow-hidden"
+                className="flex flex-col rounded-2xl border border-slate-200/70 bg-white scroll-mt-20 overflow-hidden"
               >
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
                   <div className="flex items-center gap-2">
@@ -2967,7 +2996,7 @@ ${coaching?.feedbackText ?? "(없음)"}
               </section>
 
               {/* ── 3. Heatmap ── */}
-              <div id="section-heatmap" className="scroll-mt-6">
+              <div id="section-heatmap" className="scroll-mt-20">
                 <CollapsibleCard
                   title="히트맵"
                   icon={<Target aria-hidden="true" />}
@@ -2987,7 +3016,9 @@ ${coaching?.feedbackText ?? "(없음)"}
 
               {/* ── 4. Stroke + Ability ── */}
               <div className="grid gap-6 lg:grid-cols-2">
-                <div id="section-stroke" className="h-full scroll-mt-6">
+                {/* 가운데 정렬로 이동하므로 scroll-mt를 두지 않는다 —
+                    여백을 주면 그만큼 중심이 아래로 밀린다 */}
+                <div id="section-stroke" className="h-full">
                   <CollapsibleCard
                     title="스트로크 분포"
                     icon={<Zap aria-hidden="true" />}
@@ -3027,7 +3058,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                   </CollapsibleCard>
                 </div>
 
-                <div id="section-ability" className="h-full scroll-mt-6">
+                <div id="section-ability" className="h-full">
                   <CollapsibleCard
                     title="능력치 분석"
                     icon={<Award aria-hidden="true" />}
@@ -3080,7 +3111,7 @@ ${coaching?.feedbackText ?? "(없음)"}
               {/* ── 5. AI Briefing ── */}
               <section
                 id="section-briefing"
-                className="rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-6"
+                className="rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-20"
               >
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
                   <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">

@@ -24,6 +24,7 @@ import {
   Star,
   Timer,
   ArrowUp,
+  ArrowUpRight,
   ArrowDown,
   ArrowRight,
   Minus,
@@ -74,11 +75,18 @@ interface Highlight {
   description: string;
 }
 
+/** 타격 하이라이트가 켜져 있는 시간(초). 이 안에 다음 타격이 오면 그쪽으로 넘어간다. */
+const HIGHLIGHT_HOLD_SEC = 2;
+
+/** 목록을 직접 스크롤한 뒤 자동 따라가기를 쉬는 시간(ms). */
+const AUTO_SCROLL_PAUSE_MS = 5000;
+
 // ── 스트로크 필터 카테고리 ──────────────────────────────────
 type StrokeFilter =
   | "all"
   | "smash"
   | "clear"
+  | "lob"
   | "drop"
   | "drive"
   | "serve"
@@ -300,14 +308,21 @@ function MiniCourtMap({
 // 스트로크 유틸리티
 // ─────────────────────────────────────────────────────────────
 
-/** 문자열(타입/제목 등)에서 스트로크 카테고리를 키워드로 추론 (대소문자·부분일치 허용) */
+/**
+ * 문자열(타입/제목 등)에서 스트로크 카테고리를 키워드로 추론 (대소문자·부분일치 허용).
+ *
+ * 판정 순서는 reportpageApi의 strokeKeyOf와 맞춰야 한다 — 같은 영상을 두
+ * 화면이 다르게 세면 안 된다. 특히 lob은 clear보다 먼저 본다. 예전에는
+ * lob이 clear 패턴에 섞여 있어서 로브가 전부 클리어로 흡수됐다.
+ */
 function getStrokeCategory(raw?: string): Exclude<StrokeFilter, "all"> {
   const s = (raw ?? "").toLowerCase();
   if (/스매시|smash/.test(s)) return "smash";
-  if (/클리어|하이클리어|롱하이|clear|lob/.test(s)) return "clear";
+  if (/로브|lob/.test(s)) return "lob";
   if (/드롭|커트|drop|cut/.test(s)) return "drop";
   if (/드라이브|drive/.test(s)) return "drive";
   if (/서브|서비스|serve|service/.test(s)) return "serve";
+  if (/클리어|하이클리어|롱하이|clear/.test(s)) return "clear";
   if (/네트|헤어핀|푸시|net|hairpin|push/.test(s)) return "net";
   return "other";
 }
@@ -322,6 +337,7 @@ const STROKE_FILTER_LIST: { key: StrokeFilter; label: string }[] = [
   { key: "all",   label: "전체"   },
   { key: "smash", label: "스매시" },
   { key: "clear", label: "클리어" },
+  { key: "lob",   label: "로브"   },
   { key: "drop",  label: "드롭"   },
   { key: "drive", label: "드라이브" },
   { key: "serve", label: "서브"   },
@@ -333,6 +349,7 @@ function getStrokeIcon(cat: Exclude<StrokeFilter, "all">) {
   switch (cat) {
     case "smash":  return <Zap       className="size-3.5" />;
     case "clear":  return <ArrowUp   className="size-3.5" />;
+    case "lob":    return <ArrowUpRight className="size-3.5" />;
     case "drop":   return <ArrowDown className="size-3.5" />;
     case "drive":  return <ArrowRight className="size-3.5" />;
     case "serve":  return <Circle    className="size-3.5" />;
@@ -345,6 +362,7 @@ function getStrokeStyle(cat: Exclude<StrokeFilter, "all">) {
   switch (cat) {
     case "smash":  return { badge: "bg-rose-50 text-rose-700 border-rose-200",     icon: "text-rose-500"    };
     case "clear":  return { badge: "bg-sky-50 text-sky-700 border-sky-200",        icon: "text-sky-500"     };
+    case "lob":    return { badge: "bg-indigo-50 text-indigo-700 border-indigo-200", icon: "text-indigo-500" };
     case "drop":   return { badge: "bg-violet-50 text-violet-700 border-violet-200", icon: "text-violet-500" };
     case "drive":  return { badge: "bg-amber-50 text-amber-700 border-amber-200",  icon: "text-amber-500"   };
     case "serve":  return { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "text-emerald-500" };
@@ -357,6 +375,7 @@ function getStrokeMarkerColor(cat: Exclude<StrokeFilter, "all">) {
   switch (cat) {
     case "smash":  return "bg-rose-400";
     case "clear":  return "bg-sky-400";
+    case "lob":    return "bg-indigo-400";
     case "drop":   return "bg-violet-400";
     case "drive":  return "bg-amber-400";
     case "serve":  return "bg-emerald-400";
@@ -391,7 +410,12 @@ export function VideoPlayerPage({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<StrokeFilter>("all");
-  const [lastClickedKey, setLastClickedKey] = useState<string | number | null>(null);
+
+  // 활성 줄을 목록 안에서 따라가기 위한 참조
+  const eventListRef = useRef<HTMLDivElement>(null);
+  const activeRowRef = useRef<HTMLButtonElement>(null);
+  /** 이 시각(ms)까지는 목록을 자동으로 움직이지 않는다 — 사용자가 직접 스크롤한 직후 */
+  const autoScrollPausedUntil = useRef(0);
 
   // ── 전체화면 ────────────────────────────────────────────────
   const videoStageRef = useRef<HTMLDivElement>(null);
@@ -759,17 +783,56 @@ export function VideoPlayerPage({
   const markerEvents = timelineEventsState; // 항상 전체 표시
 
   // ── 타임라인 활성 이벤트 ────────────────────────────────────
+  // 이미 지나간 타격 중 가장 최근 것을 켠다.
+  //
+  // 예전에는 Math.abs로 거리를 재서 타격 "2초 전"부터 불이 들어왔다.
+  // 그래서 화면의 타격보다 하이라이트가 먼저 움직였다. 앞을 보지 않고
+  // 지나간 쪽만 보면 타격 순간에 켜진다.
   const activeEventId = useMemo(() => {
     if (activeDuration <= 0) return null;
-    let best: { id: string | number; dist: number } | null = null;
+    let best: { id: string | number; elapsed: number } | null = null;
     for (const e of filteredTimelineEvents) {
-      const dist = Math.abs(currentTime - e.timestamp);
-      if (dist < 2 && (!best || dist < best.dist)) {
-        best = { id: e.eventId ?? e.timestamp, dist };
+      const elapsed = currentTime - e.timestamp;
+      if (
+        elapsed >= 0 &&
+        elapsed < HIGHLIGHT_HOLD_SEC &&
+        (!best || elapsed < best.elapsed)
+      ) {
+        best = { id: e.eventId ?? e.timestamp, elapsed };
       }
     }
     return best ? best.id : null;
   }, [currentTime, filteredTimelineEvents, activeDuration]);
+
+  // 손으로 목록을 움직이면 잠시 따라가기를 멈춘다 — 앞뒤를 살펴보는 중인데
+  // 다음 타격마다 화면이 도로 끌려오면 읽을 수가 없다.
+  // (자동 스크롤도 scroll 이벤트를 내므로 wheel·touch 같은 실제 입력만 본다)
+  const pauseAutoScroll = useCallback(() => {
+    autoScrollPausedUntil.current = Date.now() + AUTO_SCROLL_PAUSE_MS;
+  }, []);
+
+  // 활성 줄이 목록 밖으로 나가면 그 줄만큼만 스크롤해 따라간다.
+  // 랠리가 길어지면 다음 타격이 화면 아래로 밀려 보이지 않기 때문이다.
+  useEffect(() => {
+    if (Date.now() < autoScrollPausedUntil.current) return;
+
+    const row = activeRowRef.current;
+    const box = eventListRef.current;
+    if (!row || !box) return;
+
+    const r = row.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    if (r.top >= b.top && r.bottom <= b.bottom) return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    box.scrollTo({
+      // 목록 한가운데로 오게 — 위아래 흐름이 같이 보인다
+      top: box.scrollTop + (r.top - b.top) - (b.height - r.height) / 2,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }, [activeEventId]);
 
   const scoreLeft      = matchSummary?.matchScore?.split(":")[0] ?? "-";
   const scoreRight     = matchSummary?.matchScore?.split(":")[1] ?? "-";
@@ -783,7 +846,7 @@ export function VideoPlayerPage({
   const filterCounts = useMemo(() => {
     const counts: Record<StrokeFilter, number> = {
       all: timelineEventsState.length,
-      smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, other: 0,
+      smash: 0, clear: 0, lob: 0, drop: 0, drive: 0, serve: 0, net: 0, other: 0,
     };
     timelineEventsState.forEach((e) => {
       counts[categoryOfEvent(e)]++;
@@ -791,22 +854,34 @@ export function VideoPlayerPage({
     return counts;
   }, [timelineEventsState]);
 
+  // ── 이 영상에 실제로 있는 스트로크만 탭으로 노출 ──────────────
+  // 분류 체계는 영상마다 다르다(아마추어 4종 / 프로 6종). 8종을 고정으로
+  // 깔면 늘 절반이 0인 채로 남아 고를 것과 못 고를 것이 섞인다.
+  // 활성 필터는 0이 되어도 남긴다 — 선택한 탭이 눈앞에서 사라지지 않게.
+  const visibleFilters = useMemo(
+    () =>
+      STROKE_FILTER_LIST.filter(
+        ({ key }) =>
+          key === "all" || filterCounts[key] > 0 || key === activeFilter,
+      ),
+    [filterCounts, activeFilter],
+  );
+
   // ── 타임라인 이벤트 한 줄 렌더러 ──────────────────────────
   const renderEventRow = (event: ApiTimelineEvent) => {
     const cat = categoryOfEvent(event);
     const style = getStrokeStyle(cat);
     const eventKey = event.eventId ?? event.timestamp;
-    const isActive =
-      lastClickedKey === eventKey
-        ? Math.abs(currentTime - event.timestamp) < 2
-        : lastClickedKey === null && eventKey === activeEventId;
+    const isActive = eventKey === activeEventId;
 
     return (
       <button
         key={eventKey}
+        ref={isActive ? activeRowRef : undefined}
         onClick={(e) => {
           e.stopPropagation();
-          setLastClickedKey(eventKey);
+          // 직접 고른 지점이니 따라가기를 다시 켠다
+          autoScrollPausedUntil.current = 0;
           handleJumpTo(event.timestamp);
         }}
         className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${
@@ -1531,7 +1606,7 @@ export function VideoPlayerPage({
                   {/* ── 스트로크 필터 탭 (스크롤 가능) ── */}
                   <div className="px-4 pb-3 flex-shrink-0">
                     <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
-                      {STROKE_FILTER_LIST.map(({ key, label }) => {
+                      {visibleFilters.map(({ key, label }) => {
                         const count = filterCounts[key];
                         const isActive = activeFilter === key;
                         const cat = key !== "all" ? key as Exclude<StrokeFilter, "all"> : null;
@@ -1580,7 +1655,12 @@ export function VideoPlayerPage({
                   </div>
 
                   {/* ── 이벤트 리스트 (항상 시간 순서, 필터만 적용) ── */}
-                  <div className="flex-1 overflow-y-auto px-3 pb-4">
+                  <div
+                    ref={eventListRef}
+                    onWheel={pauseAutoScroll}
+                    onTouchMove={pauseAutoScroll}
+                    className="flex-1 overflow-y-auto px-3 pb-4"
+                  >
                     {filteredTimelineEvents.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-16 text-center">
                         <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mb-3">
