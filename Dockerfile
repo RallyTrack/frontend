@@ -1,4 +1,4 @@
-FROM node:18 AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 # lockfile 기준 재현 가능한 설치 (react가 optional peerDep이라 npm install은 누락 위험)
 COPY package.json package-lock.json ./
