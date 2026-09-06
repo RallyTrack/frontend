@@ -71,7 +71,7 @@ export function SignupForm({ onSignupSuccess, onGoLogin }: Props) {
     setSuccess("");
 
     try {
-      const res = await fetch("http://localhost:8080/api/v1/signup", {
+      const res = await fetch("/api/v1/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
