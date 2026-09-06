@@ -1,4 +1,4 @@
-import { ReportResponse } from "../types/reportpageType";
+import { ReportResponse, PlayerData } from "../types/reportpageType";
 import { apiClient } from './apiClient';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,7 +36,8 @@ interface RawPlayerReport {
   positionAnalysis?: RawPositionAnalysis;
   strokeTypes?: {
     smash?: number; clear?: number; drop?: number;
-    drive?: number; serve?: number; net?: number; others?: number;
+    drive?: number; serve?: number; lob?: number;
+    net?: number; others?: number;
   };
   abilityMetrics?: {
     aggression?:  number | null;
@@ -78,6 +79,9 @@ interface RawAnalysisResponse {
     aiCoaching?: RawPlayerReport["aiCoaching"];
     hitsData?: RawHitDto[];
     videoFps?: number;
+    // 업로드 유형. 백엔드가 어떤 이름으로 내려줄지 확정되지 않아 둘 다 받는다.
+    mode?: string | null;
+    playerType?: string | null;
   };
 }
 
@@ -118,6 +122,56 @@ const STROKE_INTENSITY: Record<string, number> = {
   Serve: 0.45, serve: 0.45,
   Net:   0.40, net:   0.40,
 };
+
+/**
+ * 개별 타격의 strokeType 문자열 → 프론트 분류 키.
+ * 백엔드 표기가 대소문자·한글로 섞여 와서 소문자 부분일치로 잡는다.
+ * lob을 clear보다 먼저 보는 게 중요하다 — "롱하이클리어" 같은 표기가
+ * 아니라 실제 Lob이 clear로 흡수되면 프로 분류가 통째로 사라진다.
+ */
+function strokeKeyOf(rawType: string | null | undefined): keyof PlayerData["strokeTypes"] | null {
+  const t = (rawType ?? "").toLowerCase().trim();
+  if (!t) return null;
+  if (t.includes("smash") || t.includes("스매시")) return "smash";
+  if (t.includes("lob") || t.includes("로브")) return "lob";
+  if (t.includes("drop") || t.includes("드롭") || t.includes("커트")) return "drop";
+  if (t.includes("drive") || t.includes("드라이브")) return "drive";
+  if (t.includes("serve") || t.includes("service") || t.includes("서브")) return "serve";
+  if (t.includes("clear") || t.includes("클리어")) return "clear";
+  if (t.includes("net") || t.includes("네트") || t.includes("헤어핀")) return "net";
+  return "others";
+}
+
+function isPlayerHit(h: RawHitDto, playerSide: "top" | "bottom") {
+  const p = (h.player ?? "").toLowerCase();
+  return playerSide === "top"
+    ? p === "top" || p === "pink_top"
+    : p === "bottom" || p === "green_bottom";
+}
+
+/**
+ * 개별 타격에서 스트로크 분류를 직접 집계한다.
+ *
+ * 백엔드의 strokeTypes 집계를 그대로 쓰지 않는 이유: 타임라인에는 Lob이
+ * 잡히는데 집계에서는 lob=0, clear에 합산돼 오는 경우가 확인됐다. hitsData의
+ * strokeType에는 원래 분류가 남아 있으므로 여기서 다시 센다.
+ */
+function deriveStrokeTypesFromHits(
+  hitsData: RawHitDto[] | undefined,
+  playerSide: "top" | "bottom",
+): PlayerData["strokeTypes"] | null {
+  if (!hitsData || hitsData.length === 0) return null;
+  const counts = { smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, lob: 0, net: 0, others: 0 };
+  let matched = 0;
+  for (const h of hitsData) {
+    if (!isPlayerHit(h, playerSide)) continue;
+    const key = strokeKeyOf(h.strokeType);
+    if (!key) continue;
+    counts[key] += 1;
+    matched += 1;
+  }
+  return matched > 0 ? counts : null;
+}
 
 function deriveHeatmapFromHits(
   hitsData: RawHitDto[] | undefined,
@@ -192,7 +246,7 @@ function deriveHeatmapFromHits(
 function buildEmptyPlayerData() {
   return {
     positionAnalysis: { heatmapData: [] },
-    strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, net: 0, others: 0 },
+    strokeTypes: { smash: 0, clear: 0, drop: 0, drive: 0, serve: 0, lob: 0, net: 0, others: 0 },
     abilityMetrics: { aggression: 0, rally: 0, defense: 0, mobility: 0, consistency: 0 },
     aiCoaching: { feedbackText: "" },
   };
@@ -218,17 +272,22 @@ function normalizePlayerData(
 
   const am = raw.abilityMetrics ?? {};
 
+  // 개별 타격에서 직접 센 값을 우선한다(백엔드 집계가 Lob을 Clear로 흡수함).
+  // hitsData가 없는 응답에서만 백엔드 집계로 폴백한다.
+  const strokeTypes = deriveStrokeTypesFromHits(hitsDataFallback, playerSide) ?? {
+    smash:  raw.strokeTypes?.smash  ?? 0,
+    clear:  raw.strokeTypes?.clear  ?? 0,
+    drop:   raw.strokeTypes?.drop   ?? 0,
+    drive:  raw.strokeTypes?.drive  ?? 0,
+    serve:  raw.strokeTypes?.serve  ?? 0,
+    lob:    raw.strokeTypes?.lob    ?? 0,
+    net:    raw.strokeTypes?.net    ?? 0,
+    others: raw.strokeTypes?.others ?? 0,
+  };
+
   return {
     positionAnalysis: { heatmapData },
-    strokeTypes: {
-      smash:  raw.strokeTypes?.smash  ?? 0,
-      clear:  raw.strokeTypes?.clear  ?? 0,
-      drop:   raw.strokeTypes?.drop   ?? 0,
-      drive:  raw.strokeTypes?.drive  ?? 0,
-      serve:  raw.strokeTypes?.serve  ?? 0,
-      net:    raw.strokeTypes?.net    ?? 0,
-      others: raw.strokeTypes?.others ?? 0,
-    },
+    strokeTypes,
     abilityMetrics: {
       aggression:  am.aggression  ?? 0,
       rally:       am.rally       ?? 0,
@@ -270,6 +329,24 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
 
   const hitsData = data.hitsData;
 
+  // ── 업로드 유형 판별 신호 수집 ──────────────────────────────────────────
+  // 조회 API가 mode를 확실히 내려주지 않아서, 응답에서 건질 수 있는 단서를
+  // 전부 모아 화면 쪽으로 넘긴다. 매퍼가 필드를 통째로 재조립하기 때문에
+  // 여기서 챙기지 않으면 뒤에서는 볼 방법이 없다.
+  const declaredRaw = String(data.mode ?? data.playerType ?? "").toLowerCase();
+  const declared =
+    declaredRaw === "pro" || declaredRaw === "amateur" ? declaredRaw : undefined;
+
+  // 집계가 lob을 clear로 뭉개도, 개별 타격의 strokeType 문자열에는
+  // 원래 분류가 남아 있을 수 있다.
+  const hitStrokeTypes = Array.from(
+    new Set(
+      (data.hitsData ?? [])
+        .map((h) => String(h.strokeType ?? "").toLowerCase().trim())
+        .filter(Boolean),
+    ),
+  );
+
   const topPlayerData    = normalizePlayerData(data.players?.top,    hitsData, "top");
   const bottomPlayerData = normalizePlayerData(data.players?.bottom, hitsData, "bottom");
 
@@ -283,6 +360,7 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
         top:    topPlayerData,
         bottom: bottomPlayerData,
       },
+      modeHints: { declared, hitStrokeTypes },
     },
   };
 }

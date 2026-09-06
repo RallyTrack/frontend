@@ -136,5 +136,34 @@ export function heatRgb(t: number): string {
   return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
 }
 
+/**
+ * 도넛 조각 색 — 선수색 한 계열의 명도 램프.
+ *
+ * 투명도만 단계로 쓰면 조각끼리 구분이 잘 안 된다(특히 옅은 쪽 3~4단계).
+ * 진한 끝과 옅은 끝을 명시해서 폭을 넓히면 6조각까지도 서로 구분된다.
+ * 색상환 위치는 선수색 계열에서 벗어나지 않으므로 팔레트는 늘지 않는다.
+ *
+ * 단계는 분류 "순서"에 고정해서 쓸 것 — 값 크기에 따라 색을 정하면
+ * 선수를 바꿀 때 같은 스트로크가 다른 색이 된다.
+ */
+const SLICE_RAMP: Record<PlayerKey, { from: [number, number, number]; to: [number, number, number] }> = {
+  // 진한 앰버 → 옅은 크림
+  bottom: { from: [176, 100, 22], to: [250, 224, 194] },
+  // 진한 네이비블루 → 옅은 하늘
+  top: { from: [50, 82, 148], to: [206, 219, 241] },
+};
+
+/** 분류 n개일 때 i번째 조각 색 (i는 분류 순서) */
+export function strokeSliceColor(
+  player: PlayerKey,
+  i: number,
+  n: number,
+): string {
+  const { from, to } = SLICE_RAMP[player];
+  const t = n <= 1 ? 0 : i / (n - 1);
+  const ch = (k: 0 | 1 | 2) => Math.round(from[k] + (to[k] - from[k]) * t);
+  return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
+}
+
 /** 중립(무승부·미확정 등) */
 export const NEUTRAL_MARK = "#64748b";

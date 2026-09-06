@@ -411,7 +411,7 @@ function CollapsibleCard({
             : "max-h-0 opacity-0 overflow-hidden"
         }`}
       >
-        <div className="flex flex-1 flex-col p-4">{children}</div>
+        <div className="flex flex-1 flex-col p-3">{children}</div>
       </div>
     </div>
   );
@@ -1335,14 +1335,24 @@ function BriefingSections({
 // Grade system
 // ─────────────────────────────────────────────────────────────────────────────
 
-// 등급 색: 무지개 대신 3단계 시맨틱 (우수/보통/미흡)
+// 등급 색: 무지개 대신 3단계 시맨틱 (우수/보통/미흡).
+//
+// S와 A는 같은 초록 계열 안에서 한 단계(tonal step) 벌린다 — 배경 명도,
+// 글자 명도, 그리고 S에만 두르는 헤어라인 링. 한 겹씩은 미묘하지만 셋이
+// 겹치면 나란히 놓여도 갈라진다.
+//
+// 색을 채워 반전시키는 방법은 쓰지 않는다. 대비는 확실해지지만 S 하나만
+// 진한 덩어리로 떠서, 색 면적을 최소로 두고 링으로 상태를 알리는 이 화면의
+// 문법(PlayerToggle·활성 내비의 ring-inset)과 끊긴다.
 const GRADE_THRESHOLDS: Array<{
   min: number;
   grade: string;
   color: string;
   bg: string;
+  /** 있으면 배지에 헤어라인 링을 두른다 (최상위 등급 강조) */
+  ring?: string;
 }> = [
-  { min: 85, grade: "S", color: "#047857", bg: "#ecfdf5" },
+  { min: 85, grade: "S", color: "#065f46", bg: "#d1fae5", ring: "#04785740" },
   { min: 70, grade: "A", color: "#047857", bg: "#ecfdf5" },
   { min: 50, grade: "B", color: "#b45309", bg: "#fffbeb" },
   { min: 30, grade: "C", color: "#be123c", bg: "#fff1f2" },
@@ -1359,11 +1369,22 @@ function scoreToGrade(value: number): {
   grade: string;
   color: string;
   bg: string;
+  ring?: string;
 } {
   for (const t of GRADE_THRESHOLDS) {
-    if (value >= t.min) return { grade: t.grade, color: t.color, bg: t.bg };
+    if (value >= t.min)
+      return { grade: t.grade, color: t.color, bg: t.bg, ring: t.ring };
   }
   return { grade: "D", color: "#be123c", bg: "#fff1f2" };
+}
+
+/** 등급 배지의 인라인 스타일 — 색·배경에 더해 S면 헤어라인 링까지. */
+function gradeBadgeStyle(g: { color: string; bg: string; ring?: string }) {
+  return {
+    color: g.color,
+    background: g.bg,
+    boxShadow: g.ring ? `inset 0 0 0 1px ${g.ring}` : undefined,
+  };
 }
 
 const ABILITY_DESCRIPTIONS: Record<string, string> = {
@@ -1397,13 +1418,14 @@ function StrokeDonut({
   player: PlayerKey;
   size?: "sm" | "lg";
 }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const lg = size === "lg";
   // 카드용(sm)도 넉넉히 잡는다. 옆 능력치 카드와 높이를 맞추면 세로 여유가
   // 생기는데, 도넛이 작으면 그 공간이 그대로 빈자리로 남는다.
-  const box = lg ? 200 : 164;
+  const box = lg ? 200 : 180;
   const c = box / 2;
-  const R = lg ? 82 : 68;
-  const r = lg ? 52 : 43;
+  const R = lg ? 82 : 75;
+  const r = lg ? 52 : 47;
 
   // 조각 색: 분류 순서대로 진함 → 연함
   const colorOf = (i: number) => strokeSliceColor(player, i, rows.length);
@@ -1426,11 +1448,20 @@ function StrokeDonut({
       "Z",
     ].join(" ");
     a0 = a1;
-    return { key: row.name, d, color: colorOf(row.i) };
+    return { key: row.name, d, color: colorOf(row.i), i: row.i };
   });
 
+  // 가운데 hole은 기본 상태에서 "총 타수"만 담는다. 조각이나 범례를 짚으면
+  // 그 자리를 해당 항목 값으로 바꾼다 — 카드가 좁아 툴팁은 넘치고,
+  // 옆 능력치 카드도 같은 "hover → 고정 슬롯" 문법을 쓴다.
+  const focused = hovered != null ? rows[hovered] : null;
+  const focusedPct =
+    focused && total > 0 ? Math.round((focused.count / total) * 100) : 0;
+
   return (
-    <div className={`flex items-center ${lg ? "gap-8" : "gap-4"}`}>
+    // w-full이 없으면 범례의 flex-1이 늘어날 폭을 못 잡아 묶음이 가운데 뭉치고
+    // 카드 좌우에 빈 공간이 남는다.
+    <div className={`flex w-full items-center ${lg ? "gap-8" : "gap-5"}`}>
       {/* 값은 옆 범례가 글자로 전부 전달하므로 그림은 보조 표현이다 */}
       <svg
         viewBox={`0 0 ${box} ${box}`}
@@ -1454,8 +1485,10 @@ function StrokeDonut({
             cy={c}
             r={(R + r) / 2}
             fill="none"
-            stroke={colorOf(0)}
+            stroke={colorOf(drawn[0].i)}
             strokeWidth={R - r}
+            onMouseEnter={() => setHovered(drawn[0].i)}
+            onMouseLeave={() => setHovered(null)}
           />
         ) : (
           slices.map((sl) => (
@@ -1465,69 +1498,119 @@ function StrokeDonut({
               fill={sl.color}
               stroke="#fff"
               strokeWidth="2"
+              className="transition-opacity duration-150"
+              opacity={hovered == null || hovered === sl.i ? 1 : 0.3}
+              onMouseEnter={() => setHovered(sl.i)}
+              onMouseLeave={() => setHovered(null)}
             />
           ))
         )}
-        <text
-          x={c}
-          y={c - (lg ? 2 : 1)}
-          textAnchor="middle"
-          className="fill-slate-900"
-          fontSize={lg ? 30 : 25}
-          fontWeight={700}
-        >
-          {total}
-        </text>
-        <text
-          x={c}
-          y={c + (lg ? 20 : 15)}
-          textAnchor="middle"
-          className="fill-slate-400"
-          fontSize={lg ? 13 : 11}
-        >
-          총 타수
-        </text>
+        {focused ? (
+          <>
+            <text
+              x={c}
+              y={c - (lg ? 20 : 18)}
+              textAnchor="middle"
+              className="fill-slate-500"
+              fontSize={lg ? 14 : 12}
+              fontWeight={600}
+            >
+              {focused.name}
+            </text>
+            <text
+              x={c}
+              y={c + (lg ? 8 : 6)}
+              textAnchor="middle"
+              className="fill-slate-900"
+              fontSize={lg ? 26 : 22}
+              fontWeight={700}
+            >
+              {focused.count}회
+            </text>
+            <text
+              x={c}
+              y={c + (lg ? 28 : 24)}
+              textAnchor="middle"
+              className="fill-slate-400"
+              fontSize={lg ? 13 : 11}
+            >
+              {focusedPct}%
+            </text>
+          </>
+        ) : (
+          <>
+            <text
+              x={c}
+              y={c - (lg ? 2 : 1)}
+              textAnchor="middle"
+              className="fill-slate-900"
+              fontSize={lg ? 30 : 25}
+              fontWeight={700}
+            >
+              {total}
+            </text>
+            <text
+              x={c}
+              y={c + (lg ? 20 : 15)}
+              textAnchor="middle"
+              className="fill-slate-400"
+              fontSize={lg ? 13 : 11}
+            >
+              총 타수
+            </text>
+          </>
+        )}
       </svg>
 
-      <ul className={`min-w-0 flex-1 ${lg ? "space-y-2.5" : "space-y-2"}`}>
+      <ul className={`min-w-0 flex-1 ${lg ? "space-y-1.5" : "space-y-1"}`}>
         {rows.map((row, i) => {
           const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
           const zero = row.count === 0;
+          const active = hovered === i;
           return (
-            <li
-              key={row.name}
-              className={`grid grid-cols-[0.5rem_1fr_auto] items-center gap-2.5 ${
-                lg ? "text-sm" : "text-xs"
-              }`}
-            >
-              <span
-                className="size-2 shrink-0 rounded-sm"
-                style={{ backgroundColor: zero ? "#e2e8f0" : colorOf(i) }}
-                aria-hidden="true"
-              />
-              <span
-                className={`truncate font-medium ${
-                  zero ? "text-slate-300" : "text-slate-600"
-                }`}
+            <li key={row.name}>
+              {/* 클릭 액션은 없지만 button으로 둔다 — 키보드로도 도넛을 짚을 수
+                  있고, 옆 능력치 칩도 같은 방식이다. */}
+              <button
+                type="button"
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                onFocus={() => setHovered(i)}
+                onBlur={() => setHovered(null)}
+                aria-label={`${row.name} ${row.count}회, 전체의 ${pct}퍼센트`}
+                className={`grid w-full grid-cols-[0.5rem_1fr_auto] items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 ${
+                  lg ? "text-sm" : "text-[13px]"
+                } ${active ? "bg-slate-100" : "hover:bg-slate-50"}`}
               >
-                {row.name}
-              </span>
-              <span
-                className={`tabular-nums ${
-                  zero
-                    ? "font-medium text-slate-300"
-                    : "font-bold text-slate-900"
-                }`}
-              >
-                {row.count}회{" "}
                 <span
-                  className={`${lg ? "text-xs" : "text-[10px]"} font-medium ${
-                    zero ? "text-slate-300" : "text-slate-400"
+                  className="size-2 shrink-0 rounded-sm"
+                  style={{ backgroundColor: zero ? "#cbd5e1" : colorOf(i) }}
+                  aria-hidden="true"
+                />
+                <span
+                  className={`truncate font-medium ${
+                    zero ? "text-slate-400" : "text-slate-700"
                   }`}
                 >
-                  {pct}%
+                  {row.name}
                 </span>
-              </span>
+                <span
+                  className={`tabular-nums ${
+                    zero
+                      ? "font-medium text-slate-400"
+                      : "font-bold text-slate-900"
+                  }`}
+                >
+                  {row.count}회{" "}
+                  <span
+                    className={`${lg ? "text-xs" : "text-[11px]"} font-medium ${
+                      zero ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
+                    {pct}%
+                  </span>
+                </span>
+              </button>
             </li>
           );
         })}
@@ -1559,7 +1642,8 @@ function AbilityChips({ items }: { items: { name: string; value: number }[] }) {
     <div className="mt-auto">
       <div className="grid grid-cols-5 gap-1.5">
         {items.map((a) => {
-          const { grade, color, bg } = scoreToGrade(a.value);
+          const g = scoreToGrade(a.value);
+          const grade = g.grade;
           const active = shown === a.name;
           return (
             <button
@@ -1576,12 +1660,12 @@ function AbilityChips({ items }: { items: { name: string; value: number }[] }) {
                 active ? "bg-slate-100" : "bg-slate-50 hover:bg-slate-100"
               }`}
             >
-              <span className="text-[10px] font-medium text-slate-400">
+              <span className="text-[11px] font-semibold text-slate-600">
                 {a.name}
               </span>
               <span
-                className="flex size-6 items-center justify-center rounded-lg text-xs font-bold"
-                style={{ color, background: bg }}
+                className="flex size-7 items-center justify-center rounded-lg text-sm font-bold"
+                style={gradeBadgeStyle(g)}
               >
                 {grade}
               </span>
@@ -1590,7 +1674,7 @@ function AbilityChips({ items }: { items: { name: string; value: number }[] }) {
         })}
       </div>
       {/* 높이를 고정해 hover할 때 카드가 흔들리지 않게 한다 */}
-      <p className="mt-3 min-h-[3rem] text-xs leading-relaxed text-slate-600">
+      <p className="mt-2 py-2 min-h-[2.75rem] text-xs leading-relaxed text-slate-600">
         <span className="font-semibold text-slate-800">{shown}</span>
         {shown ? " · " : ""}
         {ABILITY_DESCRIPTIONS[shown] ?? ""}
@@ -1600,16 +1684,16 @@ function AbilityChips({ items }: { items: { name: string; value: number }[] }) {
 }
 
 function AbilityGradeCard({ label, value }: { label: string; value: number }) {
-  const { grade, color, bg } = scoreToGrade(value);
+  const g = scoreToGrade(value);
   return (
     <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200/70">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-slate-600">{label}</span>
         <span
           className="text-xs font-bold px-2 py-0.5 rounded-md min-w-[32px] text-center"
-          style={{ color, background: bg }}
+          style={gradeBadgeStyle(g)}
         >
-          {grade}
+          {g.grade}
         </span>
       </div>
       <p className="text-xs text-slate-600 leading-snug">
@@ -1631,16 +1715,16 @@ function RadarTooltip({
     value,
     payload: { name },
   } = payload[0];
-  const { grade, color, bg } = scoreToGrade(value);
+  const g = scoreToGrade(value);
   return (
     <div className="max-w-[220px] rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg">
       <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-slate-700">
         {name}
         <span
           className="rounded-md px-2 py-0.5 text-xs font-bold"
-          style={{ color, background: bg }}
+          style={gradeBadgeStyle(g)}
         >
-          {grade}
+          {g.grade}
         </span>
       </p>
       <p className="text-[11px] leading-relaxed text-slate-500">
@@ -2910,16 +2994,16 @@ ${coaching?.feedbackText ?? "(없음)"}
                     onExpand={() => setExpandedPanel("stroke")}
                   >
                     {/* 분류 종류 수는 업로드 유형에 따라 4종/6종으로 달라진다 */}
-                    <div className="flex flex-1 items-center justify-center min-h-[160px]">
-                    <StrokeDonut
-                      rows={strokeData}
-                      total={playerStrokeTotal}
-                      player={activePlayer}
-                    />
+                    <div className="flex flex-1 items-center px-1">
+                      <StrokeDonut
+                        rows={strokeData}
+                        total={playerStrokeTotal}
+                        player={activePlayer}
+                      />
                     </div>
 
                     {/* 인사이트 요약 */}
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2">
                       <span className="text-[11px] font-semibold text-slate-400">
                         주 스트로크
                       </span>
@@ -2962,7 +3046,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                           <PolarGrid stroke="#e2e8f0" />
                           <PolarAngleAxis
                             dataKey="name"
-                            tick={{ fontSize: 11, fill: "#64748b" }}
+                            tick={{ fontSize: 12, fill: "#475569" }}
                           />
                           {/* 축을 0~100으로 고정하고, 링을 등급 경계(30·50·70·85)에
                               놓는다. 이러면 격자가 단순 눈금이 아니라 "어느 등급
