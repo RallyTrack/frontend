@@ -41,6 +41,8 @@ import {
 } from "../api/dashboardApi";
 import { VideoItem } from "../components/VideoItem";
 import { Footer } from "./ui/footer";
+import { PLAYER_COLOR, PLAYER_COLOR_SOFT } from "../theme/colors";
+import { niceCountAxis, maxOf } from "../theme/chartScale";
 
 interface UserInfo {
   nickname?: string;
@@ -241,6 +243,14 @@ function ActivityChartCard({
     ? activityData!.reduce((s, i) => s + i.uploadCount, 0)
     : 0;
 
+  // 두 시리즈가 한 축을 공유하므로 둘 중 큰 값 기준으로 눈금을 잡는다.
+  const activityAxis = niceCountAxis(
+    Math.max(
+      maxOf(activityData ?? [], (d) => d.usageCount),
+      maxOf(activityData ?? [], (d) => d.uploadCount),
+    ),
+  );
+
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 mb-8">
       <div className="flex items-center gap-2 mb-2">
@@ -269,6 +279,11 @@ function ActivityChartCard({
           </div>
         ) : (
           /* 실제 차트 */
+          <div
+            className="h-full"
+            role="img"
+            aria-label="요일별 사이트 사용 횟수(선)와 업로드 영상 수(막대) 비교 그래프. 정확한 수치는 아래 요약에서 확인할 수 있습니다."
+          >
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={activityData!}
@@ -281,17 +296,15 @@ function ActivityChartCard({
                 tickLine={false}
                 tick={{ fontSize: 12, fill: "#94a3b8" }}
               />
+              {/* 축은 하나만. 두 시리즈 모두 '건수'라 같은 눈금 위에서 비교돼야 한다.
+                  (축이 둘이면 두 선의 높이 관계가 스케일에 따라 달라져 실제 비율을 오해하게 된다)
+                  눈금은 두 시리즈의 최댓값 기준으로 정수 단위만 뽑는다. */}
               <YAxis
-                yAxisId="left"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fill: "#94a3b8" }}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                axisLine={false}
-                tickLine={false}
+                allowDecimals={false}
+                domain={activityAxis.domain}
+                ticks={activityAxis.ticks}
                 tick={{ fontSize: 12, fill: "#94a3b8" }}
               />
               <Tooltip
@@ -320,50 +333,61 @@ function ActivityChartCard({
                 }}
               />
               <Bar
-                yAxisId="left"
                 dataKey="uploadCount"
                 name="uploadCount"
                 radius={[8, 8, 0, 0]}
                 barSize={26}
-                fill="#60a5fa"
+                fill={PLAYER_COLOR_SOFT.top}
               />
               <Line
-                yAxisId="right"
                 type="monotone"
                 dataKey="usageCount"
                 name="usageCount"
-                stroke="#2563eb"
-                strokeWidth={3}
-                dot={{ r: 4, fill: "#2563eb" }}
+                stroke={PLAYER_COLOR.top}
+                strokeWidth={2}
+                dot={{ r: 4, fill: PLAYER_COLOR.top }}
                 activeDot={{ r: 5 }}
               />
             </ComposedChart>
           </ResponsiveContainer>
+          </div>
         )}
       </div>
 
       {/* 요약 수치 */}
       <div className="grid grid-cols-2 gap-3 mt-5">
-        <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
-          <p className="text-[11px] font-bold text-blue-500 uppercase tracking-widest mb-1">
+        {/* 위 차트의 두 시리즈와 같은 색 점을 달아 타일↔시리즈를 연결한다.
+            글자는 slate(텍스트 토큰)로 두고 색은 점에만 — 작은 글씨 대비 확보. */}
+        <div className="rounded-xl bg-slate-50 border border-slate-200/70 px-4 py-3">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+            <span
+              className="size-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: PLAYER_COLOR.top }}
+              aria-hidden="true"
+            />
             총 사이트 사용
           </p>
           {isLoading ? (
-            <div className="h-6 w-16 bg-blue-100 rounded-full animate-pulse" />
+            <div className="h-6 w-16 bg-slate-200 rounded-full animate-pulse" />
           ) : (
-            <p className="text-lg font-black text-blue-700">
+            <p className="text-lg font-black text-slate-900 tabular-nums">
               {hasData ? `${totalUsage}회` : "—"}
             </p>
           )}
         </div>
-        <div className="rounded-xl bg-sky-50 border border-sky-100 px-4 py-3">
-          <p className="text-[11px] font-bold text-sky-500 uppercase tracking-widest mb-1">
+        <div className="rounded-xl bg-slate-50 border border-slate-200/70 px-4 py-3">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+            <span
+              className="size-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: PLAYER_COLOR_SOFT.top }}
+              aria-hidden="true"
+            />
             총 업로드 수
           </p>
           {isLoading ? (
-            <div className="h-6 w-16 bg-sky-100 rounded-full animate-pulse" />
+            <div className="h-6 w-16 bg-slate-200 rounded-full animate-pulse" />
           ) : (
-            <p className="text-lg font-black text-sky-700">
+            <p className="text-lg font-black text-slate-900 tabular-nums">
               {hasData ? `${totalUpload}개` : "—"}
             </p>
           )}
@@ -1125,6 +1149,10 @@ export function DashboardPage({
   const trendIsLoading = trendData === undefined;
   const trendIsFailed = trendData === null;
 
+  // TODO(dead code): trendData / trendIsLoading / trendIsFailed / trendRows 전부
+  // 어디서도 렌더링되지 않는다. fetchPerformanceTrend()는 매 대시보드 진입마다
+  // 호출되지만 결과를 쓰는 곳이 없다. 살릴 계획이 없으면 이 블록과 601행 state,
+  // 697행 fetch effect를 함께 지울 것. 살릴 때는 theme/colors.ts 토큰을 쓸 것.
   const trendRows = [
     { label: "스매시", key: "smash" as const, color: "#ef4444" },
     { label: "수비력", key: "defense" as const, color: "#3b82f6" },

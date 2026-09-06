@@ -38,6 +38,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  LabelList,
 } from "recharts";
 import ReactMarkdown from "react-markdown";
 
@@ -45,6 +46,7 @@ import { Header, type Page } from "./Header";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type {
   ReportResponse,
+  PlayerData,
   PlayerKey,
   HeatmapPoint,
 } from "../types/reportpageType";
@@ -55,6 +57,16 @@ import {
   fetchVideoDetail,
   type MatchSummary,
 } from "../api/videoApi";
+import {
+  PLAYER_COLOR,
+  PLAYER_COLOR_STRONG,
+  PLAYER_TINT,
+  SEMANTIC_TINT,
+  NEUTRAL_MARK,
+  heatRgb,
+  heatOpacity,
+} from "../theme/colors";
+import { niceCountAxis, maxOf } from "../theme/chartScale";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -272,40 +284,70 @@ function SkeletonChart({ tall = false }: { tall?: boolean }) {
 // Player Toggle
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PLAYERS: { key: PlayerKey; label: string }[] = [
-  { key: "bottom", label: "Bottom Player" },
-  { key: "top", label: "Top Player" },
+const PLAYERS: { key: PlayerKey; label: string; full: string }[] = [
+  { key: "bottom", label: "Bottom", full: "Bottom Player" },
+  { key: "top", label: "Top", full: "Top Player" },
 ];
 
 function PlayerToggle({
   active,
   onChange,
+  variant = "default",
 }: {
   active: PlayerKey;
   onChange: (k: PlayerKey) => void;
+  /**
+   * "compact" — 사이드바처럼 좁은 자리. 컨테이너를 꽉 채우고 라벨을 줄인다.
+   *   (w-60 사이드바에서 두 칸을 같은 폭으로 두면 "Bottom Player"가 잘린다)
+   * "default" — 페이지 헤더처럼 여유 있는 자리. 전체 라벨을 쓴다.
+   */
+  variant?: "compact" | "default";
 }) {
+  const compact = variant === "compact";
   return (
-    <div className="inline-flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-      {PLAYERS.map(({ key, label }) => (
-        <button
-          key={key}
-          onClick={() => onChange(key)}
-          aria-pressed={active === key}
-          className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150
-            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40
-            ${
-              active === key
-                ? key === "bottom"
-                  ? "bg-[#059669] text-white shadow-sm shadow-emerald-200"
-                  : "bg-[#2563eb] text-white shadow-sm shadow-blue-200"
-                : "text-slate-500 hover:text-slate-800"
+    // grid-cols-2: 두 칸이 항상 같은 폭. flex로 두면 글자 길이만큼
+    // 칸 넓이가 달라져 한쪽이 넓어 보인다.
+    <div
+      className={`${compact ? "grid w-full" : "inline-grid"} grid-cols-2 items-center gap-1 bg-slate-100 rounded-xl p-1`}
+    >
+      {PLAYERS.map(({ key, label, full }) => {
+        const isActive = active === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            aria-pressed={isActive}
+            aria-label={full}
+            className={`
+              flex min-w-0 items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+              transition-[color,background-color,box-shadow] duration-150
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40
+              ${isActive ? "bg-white text-slate-900" : "text-slate-500 hover:text-slate-800"}
+            `}
+            // 흰 알약만으로는 회색 트랙(slate-100) 위에서 거의 안 보인다.
+            // 선수색 헤어라인 링으로 경계를 세운다 — 색 면적은 거의 0이면서
+            // "선택됨"과 "어느 선수인지"를 한 번에 전달한다.
+            // (사이트의 활성 내비도 ring-1 ring-inset을 쓰는 같은 문법)
+            style={
+              isActive
+                ? {
+                    boxShadow: `inset 0 0 0 1.5px ${PLAYER_COLOR[key]}, 0 2px 6px rgba(15,23,42,0.12)`,
+                  }
+                : undefined
             }
-          `}
-        >
-          {label}
-        </button>
-      ))}
+          >
+            <span
+              className="size-1.5 rounded-full shrink-0 transition-colors"
+              style={{
+                backgroundColor: isActive ? PLAYER_COLOR[key] : "transparent",
+                boxShadow: isActive ? "none" : "inset 0 0 0 1.5px #cbd5e1",
+              }}
+              aria-hidden="true"
+            />
+            <span className="truncate">{compact ? label : full}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -445,20 +487,6 @@ function Modal({
 // Badminton Heatmap Court
 // ─────────────────────────────────────────────────────────────────────────────
 
-// 히트맵 밀집도 램프 — 샷 밀집도(크기)를 나타내는 순차 색상.
-// 선수 색을 쓰지 않는 이유: (1) 초록 코트 위에서 초록 계열은 판독이 어렵고
-// (2) 두 선수를 같은 램프로 그려야 밀집도를 서로 비교할 수 있다.
-// 선수 구분은 코트 상/하 위치와 카드 헤더가 이미 담당한다.
-const HEAT_RAMP: { from: [number, number, number]; to: [number, number, number] } = {
-  from: [199, 225, 255],
-  to: [23, 58, 196],
-};
-function heatRgb(t: number): string {
-  const { from, to } = HEAT_RAMP;
-  const ch = (i: 0 | 1 | 2) => Math.round(from[i] + (to[i] - from[i]) * t);
-  return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
-}
-
 /** "0:18" · "1:02:03" · "18" → 초. 숫자 형식이 아니면(예: "분석 완료") null */
 function parseTimeToSeconds(raw?: string): number | null {
   if (!raw) return null;
@@ -478,22 +506,80 @@ function formatDurationKo(total: number): string {
   return r === 0 ? `${m}분` : `${m}분 ${r}초`;
 }
 
-const VW = 500;
-const VH = 1100;
-const OL = 50,
-  OR = 450,
-  OT = 40,
-  OB = 1060;
-const OW = OR - OL,
-  OH = OB - OT;
-const SI = Math.round(OW * 0.0754);
+/**
+ * 스트로크 분류 정의 — 차트/표/확대 모달의 단일 출처.
+ *
+ * TODO: 분류 종류 수가 등급별로 달라진다(아마추어 4종 / 프로 6~9종 예정).
+ *   API가 등급이나 분류 목록을 내려주기 시작하면, 이 상수를 함수로 바꿔서
+ *   `strokeTaxonomyFor(level)` 형태로 고르면 된다. 소비하는 쪽(strokeData,
+ *   막대 두께 계산, 값 표)은 전부 이 배열의 length만 보고 동작하므로
+ *   여기만 갈아끼우면 레이아웃은 그대로 맞는다.
+ *   types/reportpageType.ts의 strokeTypes도 함께 넓혀야 한다.
+ */
+const STROKE_TAXONOMY: { key: keyof PlayerData["strokeTypes"]; label: string }[] = [
+  { key: "smash",  label: "스매시" },
+  { key: "clear",  label: "클리어" },
+  { key: "drop",   label: "드롭" },
+  { key: "drive",  label: "드라이브" },
+  { key: "serve",  label: "서브" },
+  { key: "net",    label: "네트" },
+  { key: "others", label: "기타" },
+];
+
+/**
+ * 막대 두께: 종류 수가 바뀌어도 간격이 어색해지지 않게 계산한다.
+ * (고정 px로 두면 4종일 때 휑하고 9종일 때 서로 붙는다)
+ */
+function strokeBarSize(count: number, slotWidth: number): number {
+  if (count <= 0) return 24;
+  return Math.round(Math.min(slotWidth, Math.max(14, 320 / count)));
+}
+
+/** 타격 마커 색의 하한(0~1). 저빈도 지점도 코트 위에서 보이게 한다. */
+const MARKER_FLOOR = 0.45;
+
+/**
+ * 배드민턴 코트 실측 규격 (BWF Laws of Badminton, Appendix 1 · 단위 m).
+ * 아래 SVG 좌표는 전부 이 값에서 계산한다 — 비율을 따로 하드코딩하지 말 것.
+ *
+ *   복식 코트          13.40 × 6.10
+ *   단식 코트          13.40 × 5.18  (사이드라인이 복식보다 0.46 안쪽)
+ *   숏 서비스 라인      네트에서 1.98
+ *   복식 롱 서비스 라인  뒤 경계선에서 0.76
+ */
+const COURT_M = {
+  length: 13.4,
+  width: 6.1,
+  singlesInset: 0.46,
+  shortService: 1.98,
+  doublesLongService: 0.76,
+} as const;
+
+const PAD_X = 50; // 좌우 여백
+const PAD_TOP = 56; // TOP 라벨 + "선택됨 ▼" 자리
+const PAD_BOTTOM = 64; // BOTTOM 라벨 + "▲ 선택됨" 자리
+
+const OW = 400;
+const PX_PER_M = OW / COURT_M.width;
+// 세로는 반드시 실측 비율에서 뽑는다. 예전에는 OH를 임의로 1020으로 잡아
+// 세로:가로가 2.55(공식 2.20)가 되어 코트가 16% 길쭉하게 그려졌다.
+const OH = Math.round(COURT_M.length * PX_PER_M);
+
+const OL = PAD_X,
+  OR = OL + OW,
+  OT = PAD_TOP,
+  OB = OT + OH;
+const VW = OW + PAD_X * 2;
+const VH = OH + PAD_TOP + PAD_BOTTOM;
+
+const SI = Math.round(COURT_M.singlesInset * PX_PER_M);
 const SL = OL + SI,
   SR = OR - SI;
-const BI = Math.round(OH * 0.0567);
+const BI = Math.round(COURT_M.doublesLongService * PX_PER_M);
 const BT = OT + BI,
   BB = OB - BI;
 const NY = OT + OH / 2;
-const SSO = Math.round(OH * 0.1478);
+const SSO = Math.round(COURT_M.shortService * PX_PER_M);
 const SST = NY - SSO,
   SSB = NY + SSO;
 const CX = (OL + OR) / 2;
@@ -517,6 +603,9 @@ function BadmintonHeatmapCourt({
   const NW = 5;
   const isBottom = playerKey === "bottom";
   const accentColor = isBottom ? PLAYER_COLOR.bottom : PLAYER_COLOR.top;
+  const accentText = isBottom
+    ? PLAYER_COLOR_STRONG.bottom
+    : PLAYER_COLOR_STRONG.top;
 
   // ── 각 히트 포인트의 픽셀 좌표 계산 ──
   // reportpageApi.ts 에서 0~100 범위로 정규화된 좌표를 반환한다.
@@ -569,6 +658,23 @@ function BadmintonHeatmapCourt({
         >
           <feGaussianBlur stdDeviation="26" result="blur" />
         </filter>
+        {/* 타격 마커용 드롭섀도: 흰 디스크가 밝은 코트 라인 위에서도 떠 보이게 */}
+        <filter
+          id={`hitshadow-${uid}`}
+          x="-60%"
+          y="-60%"
+          width="220%"
+          height="220%"
+        >
+          <feDropShadow
+            dx="0"
+            dy="1"
+            stdDeviation="1.6"
+            floodColor="#0f172a"
+            floodOpacity="0.45"
+          />
+        </filter>
+
         {/* 외곽 헤일로(넓은 구름) 전용 필터: 훨씬 강하게 번져 수채화 효과 */}
         <filter
           id={`heatblur-halo-${uid}`}
@@ -581,21 +687,19 @@ function BadmintonHeatmapCourt({
         </filter>
 
         {/* ── 히트맵 색상 ──────────────────────────────────────────────────────────
-            선수별 단일 색상 계열, 강도(t)에 따라 색과 투명도 모두 변화
-            Bottom: 파랑 계열  연하늘(195,220,255) → 딥블루(15,45,210)
-            Top:    인디고 계열 연보라(200,185,255) → 딥인디고(50,20,200)
+            두 선수 공통 단일 색상 램프(HEAT_RAMP, 네이비 계열 hue 220°).
+            강도(t)에 따라 색과 투명도가 함께 변한다 — 연한 블루 → 딥 네이비.
+            선수 구분은 색이 아니라 코트 상/하 위치와 카드 헤더가 담당한다.
 
-            ★ opacity 커브: t² 사용 → 저빈도는 거의 안 보이고, 고빈도만 강하게
-               t=0.1 → opacity 0.01 (거의 투명)
-               t=0.5 → opacity 0.25 (연하게)
-               t=0.8 → opacity 0.64 (뚜렷하게)
-               t=1.0 → opacity 0.99 (완전히 진하게)
+            ★ opacity 커브는 heatOpacity()(theme/colors.ts)가 담당한다.
+               하한이 있어서 고립된 지점도 옅은 구름은 남는다.
+               t=0.25 → 0.22 · t=0.5 → 0.42 · t=0.75 → 0.67 · t=1 → 0.95
         ────────────────────────────────────────────────────────────────────── */}
         {zones.map((_, i) => {
           const t = zones[i].intensity;
-          const t2 = t * t; // 제곱 커브: 저강도 억제, 고강도 강조
+          const a = heatOpacity(t);
 
-          // 선수별 색상: 저강도(연한 파스텔) → 고강도(딥 컬러)
+          // 밀집도에 따라 연한 파스텔 → 딥 플럼
           const heatColor = heatRgb(t);
 
           return (
@@ -606,21 +710,16 @@ function BadmintonHeatmapCourt({
               cy="50%"
               r="50%"
             >
-              {/* 중심: t² 커브 → 저빈도 거의 투명, 고빈도 완전 불투명 */}
-              <stop
-                offset="0%"
-                stopColor={heatColor}
-                stopOpacity={Math.min(t2 * 0.97 + 0.02, 0.99)}
-              />
+              <stop offset="0%" stopColor={heatColor} stopOpacity={a} />
               <stop
                 offset="35%"
                 stopColor={heatColor}
-                stopOpacity={t2 * 0.88}
+                stopOpacity={a * 0.85}
               />
               <stop
                 offset="65%"
                 stopColor={heatColor}
-                stopOpacity={t2 * 0.62}
+                stopOpacity={a * 0.6}
               />
               <stop
                 offset="100%"
@@ -634,7 +733,7 @@ function BadmintonHeatmapCourt({
         {/* 외곽 헤일로 전용 radialGradient — 동일 색상, t² 커브 */}
         {zones.map((_, i) => {
           const t = zones[i].intensity;
-          const t2 = t * t;
+          const a = heatOpacity(t);
 
           const haloColor = heatRgb(t);
 
@@ -649,12 +748,12 @@ function BadmintonHeatmapCourt({
               <stop
                 offset="0%"
                 stopColor={haloColor}
-                stopOpacity={t2 * 0.55}
+                stopOpacity={a * 0.5}
               />
               <stop
                 offset="50%"
                 stopColor={haloColor}
-                stopOpacity={t2 * 0.3}
+                stopOpacity={a * 0.28}
               />
               <stop
                 offset="100%"
@@ -761,16 +860,29 @@ function BadmintonHeatmapCourt({
       <line x1={OL} y1={NY} x2={OR} y2={NY} stroke="#fff" strokeWidth={NW} />
       <circle cx={OL} cy={NY} r="5" fill="#fff" />
       <circle cx={OR} cy={NY} r="5" fill="#fff" />
-      <line x1={SL} y1={SST} x2={SR} y2={SST} stroke="#fff" strokeWidth={LW} />
-      <line x1={SL} y1={SSB} x2={SR} y2={SSB} stroke="#fff" strokeWidth={LW} />
-      <line x1={CX} y1={BT} x2={CX} y2={SST} stroke="#fff" strokeWidth={LW} />
-      <line x1={CX} y1={SSB} x2={CX} y2={BB} stroke="#fff" strokeWidth={LW} />
+      {/* 숏 서비스 라인 — 복식 사이드라인까지 꽉 채운다.
+          복식 서비스 코트의 경계라 단식 사이드라인에서 끊기면 안 된다. */}
+      <line x1={OL} y1={SST} x2={OR} y2={SST} stroke="#fff" strokeWidth={LW} />
+      <line x1={OL} y1={SSB} x2={OR} y2={SSB} stroke="#fff" strokeWidth={LW} />
+      {/* 센터 라인 — 숏 서비스 라인에서 "뒤 경계선"까지.
+          복식 롱 서비스 라인에서 끊으면 뒤쪽 0.76m 구간이 빈다
+          (단식 서비스 코트의 뒤 경계가 back boundary line이므로 끝까지 가야 한다). */}
+      <line x1={CX} y1={OT} x2={CX} y2={SST} stroke="#fff" strokeWidth={LW} />
+      <line x1={CX} y1={SSB} x2={CX} y2={OB} stroke="#fff" strokeWidth={LW} />
 
-      {/* ── 정확한 타격 지점 마커 (클릭 대상) ── */}
+      {/* ── 정확한 타격 지점 마커 (클릭 대상) ──
+          초록 코트 + 흰 라인 + 뒤에 깔린 블러 구름 위에 얹히므로,
+          "흰 디스크 → 얇은 잉크 링 → 색 코어" 3겹으로 어느 배경에서도 분리되게 한다.
+          코어 색은 heatRgb를 그대로 쓰지 않고 하한을 둔다(아래 MARKER_FLOOR 참고). */}
       <g clipPath={`url(#court-clip-${uid})`}>
         {zonePixels.map((zp, index) => {
           const selected = selectedHeatmapPoint === index;
           const jumpable = typeof zp.time === "number";
+          // 저빈도 지점도 보이도록 색 하한을 둔다. 구름(블러)은 원래 강도 그대로라
+          // 밀집도 정보는 그쪽이 담당하고, 마커는 "여기 쳤다"를 확실히 보여준다.
+          const core = heatRgb(MARKER_FLOOR + (1 - MARKER_FLOOR) * zp.intensity);
+          const rDisc = selected ? 12 : 9;
+          const rCore = selected ? 7.5 : 5.5;
           return (
             <g
               key={`hit-${index}`}
@@ -785,18 +897,14 @@ function BadmintonHeatmapCourt({
               <circle
                 cx={zp.px}
                 cy={zp.py}
-                r={selected ? 11 : 8}
+                r={rDisc}
                 fill="#fff"
-                fillOpacity="0.95"
+                stroke="#0f172a"
+                strokeOpacity={selected ? 0.45 : 0.28}
+                strokeWidth="1"
+                filter={`url(#hitshadow-${uid})`}
               />
-              <circle
-                cx={zp.px}
-                cy={zp.py}
-                r={selected ? 7 : 5}
-                fill={heatRgb(zp.intensity)}
-                stroke="#fff"
-                strokeWidth="1.5"
-              />
+              <circle cx={zp.px} cy={zp.py} r={rCore} fill={core} />
             </g>
           );
         })}
@@ -805,6 +913,15 @@ function BadmintonHeatmapCourt({
       {/* ── 선택 포인트 강조 링 ── */}
       {selectedHeatmapPoint !== null && zonePixels[selectedHeatmapPoint] && (
         <g clipPath={`url(#court-clip-${uid})`} style={{ pointerEvents: "none" }}>
+          <circle
+            cx={zonePixels[selectedHeatmapPoint].px}
+            cy={zonePixels[selectedHeatmapPoint].py}
+            r="18"
+            fill="none"
+            stroke="#0f172a"
+            strokeOpacity="0.35"
+            strokeWidth="4"
+          />
           <circle
             cx={zonePixels[selectedHeatmapPoint].px}
             cy={zonePixels[selectedHeatmapPoint].py}
@@ -846,7 +963,7 @@ function BadmintonHeatmapCourt({
           y={OB + 44}
           textAnchor="middle"
           fontSize="12"
-          fill={accentColor}
+          fill={accentText}
           fontWeight="700"
         >
           ▲ 선택됨
@@ -857,7 +974,7 @@ function BadmintonHeatmapCourt({
           y={OT - 28}
           textAnchor="middle"
           fontSize="12"
-          fill={accentColor}
+          fill={accentText}
           fontWeight="700"
         >
           선택됨 ▼
@@ -947,7 +1064,7 @@ function BadmintonHeatmapCourt({
         <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
           <MapPin
             className="size-3"
-            style={{ color: accentColor }}
+            style={{ color: accentText }}
             aria-hidden="true"
           />
           히트 포인트
@@ -966,13 +1083,13 @@ function BadmintonHeatmapCourt({
         </p>
       </div>
       <div className="mt-4 flex items-center gap-3">
-        {/* 그라디언트 바: 선수 색상으로 낮음→높음 */}
+        {/* 그라디언트 바: 밀집도 낮음→높음. 밝은 끝이 흰 배경에 묻히지 않게 링 처리 */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-[10px] text-slate-400 font-medium shrink-0">
             낮음
           </span>
           <div
-            className="flex-1 h-2 rounded-full"
+            className="flex-1 h-2 rounded-full ring-1 ring-inset ring-slate-900/10"
             style={{
               background: `linear-gradient(to right, ${heatRgb(0)}, ${heatRgb(1)})`,
             }}
@@ -1016,11 +1133,44 @@ function BadmintonHeatmapCourt({
 // Heatmap zone factory
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * 밀집도 계산 반경 (m). 이 반경 안의 타격을 "같은 자리"로 본다.
+ */
+const DENSITY_RADIUS_M = 1.2;
+
+/**
+ * 타격 지점 → 히트맵 존.
+ *
+ * intensity는 "그 지점 주변에 샷이 얼마나 몰렸는가"(국소 밀집도)다.
+ * API가 주는 p.value는 스트로크 종류별 고정 가중치(스매시 0.95 / 네트 0.40 …)라
+ * 밀집도가 아니다. 그대로 쓰면 혼자 있는 스매시가 진하게, 다섯 개 몰린 네트가
+ * 연하게 나와서 범례("샷 밀집도")와 어긋난다. 그래서 여기서 좌표로 다시 센다.
+ *
+ * 반경 안의 이웃을 거리에 따라 감쇠시켜 합산한다(삼각 커널). 자기 자신이 1.0이라
+ * 고립된 점은 1, 뭉친 점은 이웃 수만큼 커진다.
+ */
 function buildZones(points: HeatmapPoint[]): UiHeatmapZone[] {
-  return points.map((p) => ({
+  const density = points.map((p) => {
+    let acc = 0;
+    for (const q of points) {
+      // x·y 모두 0~100이지만 코트는 정사각형이 아니다(6.10 × 13.40).
+      // 정규화값 그대로 거리를 재면 세로가 2.2배 눌린 타원이 된다 → m로 환산.
+      const dx = ((q.x - p.x) / 100) * COURT_M.width;
+      const dy = ((q.y - p.y) / 100) * COURT_M.length;
+      const d = Math.hypot(dx, dy);
+      if (d < DENSITY_RADIUS_M) acc += 1 - d / DENSITY_RADIUS_M;
+    }
+    return acc;
+  });
+
+  // 정규화 기준에 하한 2를 둔다. 모든 샷이 흩어진 경기에서 peak가 1이 되면
+  // 전부 최대 농도로 칠해져 "어디에도 안 몰렸다"는 정보가 사라진다.
+  const peak = Math.max(2, ...density);
+
+  return points.map((p, i) => ({
     x: p.x,
     y: p.y,
-    intensity: p.value ?? 0.5,
+    intensity: Math.min(1, density[i] / peak),
     time: p.timeSec,
   }));
 }
@@ -1060,16 +1210,16 @@ function briefingSectionMeta(title: string): {
   const t = title.toLowerCase();
   const I = (C: typeof Bot) => <C className="size-3.5" aria-hidden="true" />;
   if (/총평|한 줄|overview/.test(t))
-    return { icon: I(Sparkles), tint: "#1a2b4c" };
+    return { icon: I(Sparkles), tint: SEMANTIC_TINT.overview };
   if (/지표|요약|metric|summary/.test(t))
-    return { icon: I(Activity), tint: "#475569" };
+    return { icon: I(Activity), tint: SEMANTIC_TINT.metric };
   if (/강점|잘한|strength/.test(t))
-    return { icon: I(TrendingUp), tint: "#059669" };
+    return { icon: I(TrendingUp), tint: SEMANTIC_TINT.strength };
   if (/보완|약점|개선|weak|improve/.test(t))
-    return { icon: I(Target), tint: "#b45309" };
+    return { icon: I(Target), tint: SEMANTIC_TINT.weakness };
   if (/훈련|추천|연습|drill|training/.test(t))
-    return { icon: I(Dumbbell), tint: "#2563eb" };
-  return { icon: I(Bot), tint: "#475569" };
+    return { icon: I(Dumbbell), tint: SEMANTIC_TINT.training };
+  return { icon: I(Bot), tint: SEMANTIC_TINT.metric };
 }
 
 const BRIEFING_PROSE =
@@ -1145,12 +1295,6 @@ function BriefingSections({
 // ─────────────────────────────────────────────────────────────────────────────
 // Grade system
 // ─────────────────────────────────────────────────────────────────────────────
-
-// 선수 식별 색: top=파랑, bottom=초록 (전 페이지 통일). 차트/히트맵/토글 모두 이 값만 사용.
-const PLAYER_COLOR: Record<PlayerKey, string> = {
-  top: "#2563eb",
-  bottom: "#059669",
-};
 
 // 등급 색: 무지개 대신 3단계 시맨틱 (우수/보통/미흡)
 const GRADE_THRESHOLDS: Array<{
@@ -1550,15 +1694,13 @@ ${coaching?.feedbackText ?? "(없음)"}
     const summary = report.data.summary;
     const playerData = report.data.players[activePlayer];
     const heatmapZones = buildZones(playerData.positionAnalysis.heatmapData);
-    const strokeData = [
-      { name: "스매시", count: playerData.strokeTypes.smash },
-      { name: "클리어", count: playerData.strokeTypes.clear },
-      { name: "드롭", count: playerData.strokeTypes.drop },
-      { name: "드라이브", count: playerData.strokeTypes.drive },
-      { name: "서브", count: playerData.strokeTypes.serve },
-      { name: "네트", count: playerData.strokeTypes.net },
-      { name: "기타", count: playerData.strokeTypes.others },
-    ];
+    // 스트로크 분류 — STROKE_TAXONOMY(파일 상단) 하나만 고치면
+    // 차트·표·확대 모달이 모두 따라온다. 프로/아마추어로 종류 수가 달라질 때
+    // 여기서 분기하면 된다. 자세한 계획은 STROKE_TAXONOMY 주석 참고.
+    const strokeData = STROKE_TAXONOMY.map(({ key, label }) => ({
+      name: label,
+      count: Number(playerData.strokeTypes[key]) || 0,
+    }));
     const am = playerData.abilityMetrics;
     const clamp = (v: unknown) =>
       Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
@@ -1569,7 +1711,8 @@ ${coaching?.feedbackText ?? "(없음)"}
       { name: "기동력", value: clamp(am.mobility) },
       { name: "수비력", value: clamp(am.defense) },
     ];
-    const accentColor = PLAYER_COLOR[activePlayer];
+    const accentColor = PLAYER_COLOR[activePlayer];        // 막대·점 등 색면
+    const accentText = PLAYER_COLOR_STRONG[activePlayer];  // 글자·아이콘 (AA)
 
     // ── 양 선수 스트로크 합계 (경기 요약 카드: 점유율 비교용) ──
     const sumStrokes = (p: (typeof report.data.players)["top"]) =>
@@ -1613,6 +1756,10 @@ ${coaching?.feedbackText ?? "(없음)"}
         : null;
 
     // ── 선택 선수의 주 스트로크 (기타 제외) ──
+    // 건수 축: 소수 눈금 없이, 총량에 따라 단위가 자동으로 커진다.
+    // 카드/확대 모달 양쪽이 같은 눈금을 써야 하므로 여기서 한 번만 계산한다.
+    const strokeAxis = niceCountAxis(maxOf(strokeData, (d) => d.count));
+
     const namedStrokes = strokeData.filter((s) => s.name !== "기타");
     const playerStrokeTotal = strokeData.reduce((a, s) => a + s.count, 0);
     const topStroke = namedStrokes.reduce(
@@ -1624,8 +1771,10 @@ ${coaching?.feedbackText ?? "(없음)"}
       summary,
       heatmapZones,
       strokeData,
+      strokeAxis,
       abilityData,
       accentColor,
+      accentText,
       bottomStrokes,
       topStrokes,
       bottomSharePct,
@@ -1801,8 +1950,10 @@ ${coaching?.feedbackText ?? "(없음)"}
     summary,
     heatmapZones,
     strokeData,
+    strokeAxis,
     abilityData,
     accentColor,
+    accentText,
     bottomStrokes,
     topStrokes,
     bottomSharePct,
@@ -1831,7 +1982,7 @@ ${coaching?.feedbackText ?? "(없음)"}
       id: "heatmap",
       label: "히트맵",
       icon: (
-        <Target className="size-4 shrink-0" style={{ color: accentColor }} />
+        <Target className="size-4 shrink-0" style={{ color: accentText }} />
       ),
     },
     {
@@ -2017,6 +2168,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                   <PlayerToggle
                     active={activePlayer}
                     onChange={(k) => setActivePlayer(k)}
+                    variant="compact"
                   />
                 </div>
               )}
@@ -2118,13 +2270,13 @@ ${coaching?.feedbackText ?? "(없음)"}
                               label: "Bottom",
                               val: editMyScore,
                               setVal: setEditMyScore,
-                              color: "text-[#059669]",
+                              color: PLAYER_COLOR.bottom,
                             },
                             {
                               label: "Top",
                               val: editOpponentScore,
                               setVal: setEditOpponentScore,
-                              color: "text-[#2563eb]",
+                              color: PLAYER_COLOR.top,
                             },
                           ] as const
                         ).map(({ label, val, setVal, color }) => (
@@ -2132,7 +2284,12 @@ ${coaching?.feedbackText ?? "(없음)"}
                             key={label}
                             className="flex flex-col items-center gap-2"
                           >
-                            <span className={`text-xs font-semibold ${color}`}>
+                            <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                              <span
+                                className="size-1.5 rounded-full"
+                                style={{ backgroundColor: color }}
+                                aria-hidden="true"
+                              />
                               {label}
                             </span>
                             <div className="flex items-center gap-2">
@@ -2229,22 +2386,24 @@ ${coaching?.feedbackText ?? "(없음)"}
                           summary.matchOutcome === "BOTTOM_WIN" ||
                           summary.matchOutcome === "WIN";
                         const winColor = topWon
-                          ? "#2563eb"
+                          ? PLAYER_COLOR.top
                           : bottomWon
-                            ? "#059669"
-                            : "#64748b";
+                            ? PLAYER_COLOR.bottom
+                            : NEUTRAL_MARK;
+                        const winTint = topWon
+                          ? PLAYER_TINT.top
+                          : bottomWon
+                            ? PLAYER_TINT.bottom
+                            : "#f1f5f9";
                         return (
                           <div
                             className="flex items-center justify-between rounded-xl px-3.5 py-3"
                             style={{
-                              backgroundColor: `${winColor}0d`,
+                              backgroundColor: winTint,
                               boxShadow: `inset 3px 0 0 ${winColor}`,
                             }}
                           >
-                            <span
-                              className="text-sm font-bold"
-                              style={{ color: winColor }}
-                            >
+                            <span className="text-sm font-bold text-slate-900">
                               {topWon
                                 ? "Top 승"
                                 : bottomWon
@@ -2252,17 +2411,23 @@ ${coaching?.feedbackText ?? "(없음)"}
                                   : "무승부"}
                             </span>
                             <span className="flex items-baseline gap-1.5 text-sm font-bold tabular-nums">
-                              <span className="text-[10px] font-semibold text-slate-400">
+                              <span
+                                className="text-[10px] font-semibold"
+                                style={{ color: PLAYER_COLOR_STRONG.bottom }}
+                              >
                                 B
                               </span>
-                              <span className="text-[#059669]">
+                              <span className="text-slate-900">
                                 {summary.myScore}
                               </span>
                               <span className="text-slate-300">:</span>
-                              <span className="text-[#2563eb]">
+                              <span className="text-slate-900">
                                 {summary.opponentScore}
                               </span>
-                              <span className="text-[10px] font-semibold text-slate-400">
+                              <span
+                                className="text-[10px] font-semibold"
+                                style={{ color: PLAYER_COLOR_STRONG.top }}
+                              >
                                 T
                               </span>
                             </span>
@@ -2290,17 +2455,20 @@ ${coaching?.feedbackText ?? "(없음)"}
                             className="rounded-full transition-[width] duration-500"
                             style={{
                               width: `${bottomSharePct}%`,
-                              backgroundColor: "#059669",
+                              backgroundColor: PLAYER_COLOR.bottom,
                             }}
                           />
                           <span
                             className="flex-1 rounded-full"
-                            style={{ backgroundColor: "#2563eb" }}
+                            style={{ backgroundColor: PLAYER_COLOR.top }}
                           />
                         </div>
                         <div className="mt-2 flex items-center justify-between text-[11px]">
                           <span className="flex items-center gap-1.5">
-                            <span className="size-1.5 rounded-full bg-[#059669]" />
+                            <span
+                              className="size-1.5 rounded-full"
+                              style={{ backgroundColor: PLAYER_COLOR.bottom }}
+                            />
                             <span className="font-medium text-slate-500">
                               Bottom
                             </span>
@@ -2315,7 +2483,10 @@ ${coaching?.feedbackText ?? "(없음)"}
                             <span className="font-medium text-slate-500">
                               Top
                             </span>
-                            <span className="size-1.5 rounded-full bg-[#2563eb]" />
+                            <span
+                              className="size-1.5 rounded-full"
+                              style={{ backgroundColor: PLAYER_COLOR.top }}
+                            />
                           </span>
                         </div>
                       </div>
@@ -2483,18 +2654,25 @@ ${coaching?.feedbackText ?? "(없음)"}
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={strokeData}
-                          margin={{ top: 0, right: 16, left: -20, bottom: 0 }}
+                          // top 여백 0이면 최상단 눈금 라벨이 SVG 밖으로 나가지
+                          // 않으려고 아래로 밀려서, 격자선은 균일한데 라벨 간격만
+                          // 마지막 칸이 좁아 보인다. 라벨 반높이 이상을 확보한다.
+                          margin={{ top: 12, right: 16, left: -20, bottom: 0 }}
                         >
                           <CartesianGrid vertical={false} stroke="#f1f5f9" />
                           <XAxis
                             dataKey="name"
                             axisLine={false}
                             tickLine={false}
+                            interval={0}
                             tick={{ fontSize: 11, fill: "#94a3b8" }}
                           />
                           <YAxis
                             axisLine={false}
                             tickLine={false}
+                            allowDecimals={false}
+                            domain={strokeAxis.domain}
+                            ticks={strokeAxis.ticks}
                             tick={{ fontSize: 11, fill: "#94a3b8" }}
                           />
                           <Tooltip
@@ -2509,7 +2687,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                             dataKey="count"
                             fill={accentColor}
                             radius={[8, 8, 0, 0]}
-                            barSize={36}
+                            barSize={strokeBarSize(strokeData.length, 44)}
                           />
                         </BarChart>
                       </ResponsiveContainer>
@@ -2519,13 +2697,12 @@ ${coaching?.feedbackText ?? "(없음)"}
                       <span className="text-[11px] font-semibold text-slate-400">
                         주 스트로크
                       </span>
-                      <span
-                        className="rounded-md px-2 py-0.5 text-xs font-bold"
-                        style={{
-                          backgroundColor: `${accentColor}14`,
-                          color: accentColor,
-                        }}
-                      >
+                      <span className="flex items-center gap-1.5 rounded-md bg-white px-2 py-0.5 text-xs font-bold text-slate-900 ring-1 ring-slate-200">
+                        <span
+                          className="size-1.5 rounded-full"
+                          style={{ backgroundColor: PLAYER_COLOR[activePlayer] }}
+                          aria-hidden="true"
+                        />
                         {topStroke.name}
                       </span>
                       <span className="text-xs font-bold tabular-nums text-slate-700">
@@ -2629,13 +2806,12 @@ ${coaching?.feedbackText ?? "(없음)"}
                       <Bot className="size-3.5" aria-hidden="true" />
                     </span>
                     AI 브리핑
-                    <span
-                      className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
-                      style={{
-                        background: `${accentColor}15`,
-                        color: accentColor,
-                      }}
-                    >
+                    <span className="ml-1 flex items-center gap-1.5 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-900 ring-1 ring-slate-200">
+                      <span
+                        className="size-1.5 rounded-full"
+                        style={{ backgroundColor: PLAYER_COLOR[activePlayer] }}
+                        aria-hidden="true"
+                      />
                       {isBottom ? "Bottom Player" : "Top Player"}
                     </span>
                   </h2>
@@ -2678,7 +2854,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                       </div>
                       <span
                         className="text-sm font-medium"
-                        style={{ color: accentColor }}
+                        style={{ color: accentText }}
                       >
                         AI가 리포트를 요약 중입니다…
                       </span>
@@ -2692,7 +2868,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                   {!briefingLoading && !briefingError && (
                     <BriefingSections
                       content={aiBriefing}
-                      accent={accentColor}
+                      accent={accentText}
                     />
                   )}
                   <p className="mt-4 text-[11px] text-slate-400">
@@ -2742,11 +2918,15 @@ ${coaching?.feedbackText ?? "(없음)"}
                 dataKey="name"
                 axisLine={false}
                 tickLine={false}
+                interval={0}
                 tick={{ fontSize: 13, fill: "#64748b" }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
+                allowDecimals={false}
+                domain={strokeAxis.domain}
+                ticks={strokeAxis.ticks}
                 tick={{ fontSize: 12, fill: "#94a3b8" }}
               />
               <Tooltip contentStyle={{ borderRadius: 10 }} />
@@ -2754,8 +2934,19 @@ ${coaching?.feedbackText ?? "(없음)"}
                 dataKey="count"
                 fill={accentColor}
                 radius={[10, 10, 0, 0]}
-                barSize={60}
-              />
+                barSize={strokeBarSize(strokeData.length, 72)}
+              >
+                {/* 카드와 달리 확대 모달에는 값 표가 없다. 막대 색만으로
+                    읽히지 않도록 각 막대에 값을 직접 붙인다. */}
+                <LabelList
+                  dataKey="count"
+                  position="top"
+                  offset={8}
+                  fill="#475569"
+                  fontSize={12}
+                  fontWeight={700}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -2798,7 +2989,7 @@ ${coaching?.feedbackText ?? "(없음)"}
         onClose={() => setExpandedPanel(null)}
       >
         {briefingLoading && (
-          <p className="text-sm animate-pulse" style={{ color: accentColor }}>
+          <p className="text-sm animate-pulse" style={{ color: accentText }}>
             AI가 리포트를 요약 중입니다…
           </p>
         )}
@@ -2808,7 +2999,7 @@ ${coaching?.feedbackText ?? "(없음)"}
           </p>
         )}
         {!briefingLoading && !briefingError && (
-          <BriefingSections content={aiBriefing} accent={accentColor} />
+          <BriefingSections content={aiBriefing} accent={accentText} />
         )}
       </Modal>
     </div>
