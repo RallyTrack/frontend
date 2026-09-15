@@ -1011,7 +1011,7 @@ export function VideoPlayerPage({
         {/* spacer — fixed aside가 흐름에서 빠지므로 같은 폭만큼 main을 밀어낸다.
             서랍으로 바뀌는 lg 미만에서는 밀어낼 필요가 없다. */}
         <div
-          className={`hidden shrink-0 transition-all duration-300 ease-in-out lg:block ${sidebarOpen ? "lg:w-56" : "lg:w-14"}`}
+          className={`hidden shrink-0 transition-[width] duration-300 ease-in-out lg:block ${sidebarOpen ? "lg:w-56" : "lg:w-14"}`}
           aria-hidden="true"
         />
 
@@ -1024,19 +1024,21 @@ export function VideoPlayerPage({
           />
         )}
 
+        {/* 닫힌 서랍은 visibility 로 감춘다. transform 만으로 밀어내면 화면 밖에
+            있어도 탭 순서와 접근성 트리에 남아, 보이지 않는 버튼으로 포커스가
+            사라진다. visibility 는 transition 에 포함시켜야 닫힘 애니메이션이 살아난다. */}
         <aside
           aria-label="영상 분석 메뉴"
-          aria-hidden={!isDesktopNav && !mobileNavOpen}
           className={`
             fixed left-0 top-16 z-40
             flex flex-col bg-white
             border-r border-slate-200/70
             shadow-[2px_0_24px_rgba(15,23,42,0.05)]
-            transition-transform duration-300 ease-in-out
+            transition-[transform,visibility] duration-300 ease-in-out
             h-[calc(100dvh-64px)] overflow-hidden
-            w-72 max-w-[85vw]
-            ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}
-            lg:z-30 lg:max-w-none lg:translate-x-0 lg:transition-all
+            w-72 max-w-[85vw] overscroll-contain
+            ${mobileNavOpen ? "visible translate-x-0" : "invisible -translate-x-full"}
+            lg:z-30 lg:max-w-none lg:translate-x-0 lg:visible lg:transition-[width]
             ${sidebarOpen ? "lg:w-56" : "lg:w-14"}
           `}
         >
