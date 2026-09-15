@@ -1,5 +1,14 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AlertCircle, CheckCircle } from "lucide-react";
+import {
+  FOOT_NOTE,
+  INPUT_BASE,
+  LABEL_BASE,
+  LINK_BUTTON,
+  PRIMARY_BUTTON,
+  SUBTITLE_BASE,
+  TITLE_BASE,
+} from "./authFormStyles";
 
 type Props = {
   onSignupSuccess: () => void;
@@ -14,6 +23,13 @@ export function SignupForm({ onSignupSuccess, onGoLogin }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // 라벨↔입력 연결용. 모달이 다시 열려 새로 마운트돼도 id가 겹치지 않는다.
+  const nameId = useId();
+  const emailId = useId();
+  const passwordId = useId();
+  const password2Id = useId();
+  const passwordHintId = useId();
 
   const validateForm = (): boolean => {
     setError("");
@@ -102,30 +118,42 @@ export function SignupForm({ onSignupSuccess, onGoLogin }: Props) {
   };
 
   return (
-    <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
-      <h2 className="text-2xl font-bold text-gray-900">회원가입</h2>
-      <p className="mt-1 text-sm text-gray-500">새 계정을 만들어보세요</p>
+    // 카드 껍데기(배경·그림자·여백)는 AuthModal이 갖는다.
+    <div className="w-full">
+      <h2 className={TITLE_BASE}>회원가입</h2>
+      <p className={SUBTITLE_BASE}>새 계정을 만들어보세요</p>
 
+      {/* 안내 문구는 폭이 좁아지면 아이콘 옆에서 줄바꿈된다 — items-start라야
+          여러 줄일 때 아이콘이 첫 줄에 맞춰 붙는다. */}
       {error && (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="size-5 flex-shrink-0" />
+        <div
+          role="alert"
+          className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm leading-relaxed break-keep text-red-700"
+        >
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-          <CheckCircle className="size-5 flex-shrink-0" />
+        <div
+          role="status"
+          className="mt-4 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3 text-sm leading-relaxed break-keep text-green-700"
+        >
+          <CheckCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{success}</span>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">이름</label>
+          <label htmlFor={nameId} className={LABEL_BASE}>이름</label>
           <input
+            id={nameId}
+            name="name"
             type="text"
-            className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            autoComplete="name"
+            className={INPUT_BASE}
             placeholder="홍길동"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -135,10 +163,15 @@ export function SignupForm({ onSignupSuccess, onGoLogin }: Props) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">이메일</label>
+          <label htmlFor={emailId} className={LABEL_BASE}>이메일</label>
           <input
+            id={emailId}
+            name="email"
             type="email"
-            className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            autoComplete="email"
+            spellCheck={false}
+            autoCapitalize="none"
+            className={INPUT_BASE}
             placeholder="example@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -148,10 +181,14 @@ export function SignupForm({ onSignupSuccess, onGoLogin }: Props) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">비밀번호</label>
+          <label htmlFor={passwordId} className={LABEL_BASE}>비밀번호</label>
           <input
+            id={passwordId}
+            name="password"
             type="password"
-            className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            autoComplete="new-password"
+            aria-describedby={passwordHintId}
+            className={INPUT_BASE}
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -159,14 +196,19 @@ export function SignupForm({ onSignupSuccess, onGoLogin }: Props) {
             maxLength={20} // 클라이언트측 입력 제한
             required
           />
-          <p className="mt-1 text-xs text-gray-500">8글자 이상 20글자 이하</p>
+          <p id={passwordHintId} className="mt-1.5 text-xs text-gray-500">
+            8글자 이상 20글자 이하
+          </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">비밀번호 확인</label>
+          <label htmlFor={password2Id} className={LABEL_BASE}>비밀번호 확인</label>
           <input
+            id={password2Id}
+            name="passwordConfirm"
             type="password"
-            className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            autoComplete="new-password"
+            className={INPUT_BASE}
             placeholder="••••••••"
             value={password2}
             onChange={(e) => setPassword2(e.target.value)}
@@ -175,25 +217,21 @@ export function SignupForm({ onSignupSuccess, onGoLogin }: Props) {
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="mt-2 w-full rounded-xl bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-        >
+        <button type="submit" disabled={isLoading} className={PRIMARY_BUTTON}>
           {isLoading ? "처리 중..." : "회원가입"}
         </button>
 
-        <div className="pt-4 text-center text-sm text-gray-600">
+        <p className={FOOT_NOTE}>
           이미 계정이 있나요?{" "}
           <button
             type="button"
             onClick={onGoLogin}
             disabled={isLoading}
-            className="text-blue-600 hover:underline disabled:cursor-not-allowed"
+            className={LINK_BUTTON}
           >
             로그인
           </button>
-        </div>
+        </p>
       </form>
     </div>
   );

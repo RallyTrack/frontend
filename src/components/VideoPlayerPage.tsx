@@ -36,8 +36,10 @@ import {
   X,
   Maximize,
   Minimize,
+  Menu,
 } from "lucide-react";
 import { Header, type Page } from "./Header";
+import { useMediaQuery } from "./ui/use-mobile";
 import {
   fetchVideoDetail,
   updateMatchScore,
@@ -423,6 +425,29 @@ export function VideoPlayerPage({
 
   // ── 사이드바 ────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // 좁은 화면에서는 사이드바가 화면을 덮는 서랍으로 바뀐다.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isDesktopNav = useMediaQuery("(min-width: 1024px)");
+  /**
+   * 사이드바 '접기'는 데스크톱에서만 의미가 있다. 서랍으로 열릴 때는
+   * 아이콘만 남은 모양이 될 이유가 없으므로 항상 펼친 상태로 그린다.
+   */
+  const navExpanded = isDesktopNav ? sidebarOpen : true;
+
+  // 서랍은 ESC로 닫히고, 데스크톱 폭으로 넓어지면 상태를 비운다.
+  useEffect(() => {
+    if (isDesktopNav) {
+      setMobileNavOpen(false);
+      return;
+    }
+    if (!mobileNavOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isDesktopNav, mobileNavOpen]);
   const [videoSectionOpen, setVideoSectionOpen] = useState(true);
 
   // ── Dual Video ───────────────────────────────────────────────
@@ -983,42 +1008,68 @@ export function VideoPlayerPage({
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* spacer */}
+        {/* spacer — fixed aside가 흐름에서 빠지므로 같은 폭만큼 main을 밀어낸다.
+            서랍으로 바뀌는 lg 미만에서는 밀어낼 필요가 없다. */}
         <div
-          className={`shrink-0 transition-all duration-300 ease-in-out ${sidebarOpen ? "w-56" : "w-14"}`}
+          className={`hidden shrink-0 transition-[width] duration-300 ease-in-out lg:block ${sidebarOpen ? "lg:w-56" : "lg:w-14"}`}
           aria-hidden="true"
         />
 
+        {/* 서랍 배경 — lg 미만에서만 뜬다 */}
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 top-16 z-30 bg-slate-900/40 lg:hidden"
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* 닫힌 서랍은 visibility 로 감춘다. transform 만으로 밀어내면 화면 밖에
+            있어도 탭 순서와 접근성 트리에 남아, 보이지 않는 버튼으로 포커스가
+            사라진다. visibility 는 transition 에 포함시켜야 닫힘 애니메이션이 살아난다. */}
         <aside
+          aria-label="영상 분석 메뉴"
           className={`
-            fixed left-0 top-16 z-30
+            fixed left-0 top-16 z-40
             flex flex-col bg-white
             border-r border-slate-200/70
             shadow-[2px_0_24px_rgba(15,23,42,0.05)]
-            transition-all duration-300 ease-in-out
-            h-[calc(100vh-64px)] overflow-hidden
-            ${sidebarOpen ? "w-56" : "w-14"}
+            transition-[transform,visibility] duration-300 ease-in-out
+            h-[calc(100dvh-64px)] overflow-hidden
+            w-72 max-w-[85vw] overscroll-contain
+            ${mobileNavOpen ? "visible translate-x-0" : "invisible -translate-x-full"}
+            lg:z-30 lg:max-w-none lg:translate-x-0 lg:visible lg:transition-[width]
+            ${sidebarOpen ? "lg:w-56" : "lg:w-14"}
           `}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
             {/* ── '영상 분석' 라벨 + 접기 토글 (같은 행) ── */}
-            <div className={`flex items-center pt-2 ${sidebarOpen ? "justify-between px-3" : "justify-end px-2"}`}>
-              {sidebarOpen && (
+            <div className={`flex items-center pt-2 ${navExpanded ? "justify-between px-3" : "justify-end px-2"}`}>
+              {navExpanded && (
                 <p className="pl-1 text-[11px] font-medium text-slate-400">영상 분석</p>
               )}
               <button
                 onClick={() => setSidebarOpen((v) => !v)}
-                aria-label={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
-                aria-expanded={sidebarOpen}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
-                title={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
+                aria-label={navExpanded ? "사이드바 접기" : "사이드바 펼치기"}
+                aria-expanded={navExpanded}
+                className="hidden w-8 h-8 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 lg:flex"
+                title={navExpanded ? "사이드바 접기" : "사이드바 펼치기"}
               >
-                {sidebarOpen ? <PanelLeftClose className="size-4" aria-hidden="true" /> : <PanelLeftOpen className="size-4" aria-hidden="true" />}
+                {navExpanded ? <PanelLeftClose className="size-4" aria-hidden="true" /> : <PanelLeftOpen className="size-4" aria-hidden="true" />}
+              </button>
+
+              {/* 서랍 닫기 — 44px 터치 목표 */}
+              <button
+                onClick={() => setMobileNavOpen(false)}
+                aria-label="메뉴 닫기"
+                className="flex size-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 lg:hidden"
+              >
+                <X className="size-5" aria-hidden="true" />
               </button>
             </div>
 
             {/* ── 영상 제목 ── */}
-            {sidebarOpen && (
+            {navExpanded && (
               <div className="px-4 pt-1 pb-3 border-b border-slate-100">
                 {videoInfo?.title ? (
                   <h1 className="text-lg font-bold text-slate-900 leading-tight line-clamp-3">
@@ -1031,39 +1082,39 @@ export function VideoPlayerPage({
             )}
 
             {/* ── 네비게이션 ── */}
-            <div className={`pt-2 pb-2 ${sidebarOpen ? "px-3" : "px-2"}`}>
+            <div className={`pt-2 pb-2 ${navExpanded ? "px-3" : "px-2"}`}>
               <div className="space-y-0.5">
                 <button
                   onClick={() => onNavigate("dashboard")}
-                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-                  title={!sidebarOpen ? "대시보드" : undefined}
+                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  title={!navExpanded ? "대시보드" : undefined}
                 >
                   <LayoutDashboard className="size-4 shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium">대시보드</span>}
+                  {navExpanded && <span className="text-sm font-medium">대시보드</span>}
                 </button>
                 <button
                   disabled
-                  className={`relative w-full flex items-center gap-2.5 rounded-lg bg-[#1a2b4c]/[0.09] text-[#1a2b4c] font-semibold cursor-default ring-1 ring-inset ring-[#1a2b4c]/10 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-                  title={!sidebarOpen ? "영상 보기 (현재 페이지)" : undefined}
+                  className={`relative w-full flex items-center gap-2.5 rounded-lg bg-[#1a2b4c]/[0.09] text-[#1a2b4c] font-semibold cursor-default ring-1 ring-inset ring-[#1a2b4c]/10 ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  title={!navExpanded ? "영상 보기 (현재 페이지)" : undefined}
                 >
                   <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-[#8ce600]" />
                   <Play className="size-4 shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium">영상 보기</span>}
+                  {navExpanded && <span className="text-sm font-medium">영상 보기</span>}
                 </button>
                 <button
                   onClick={() => onNavigate("report")}
-                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-                  title={!sidebarOpen ? "분석 페이지" : undefined}
+                  className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                  title={!navExpanded ? "분석 페이지" : undefined}
                 >
                   <FileText className="size-4 shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium">분석 페이지</span>}
+                  {navExpanded && <span className="text-sm font-medium">분석 페이지</span>}
                 </button>
               </div>
             </div>
 
             {/* ── 영상 페이지 ── */}
-            <div className={`px-3 pt-1 pb-2 border-t border-slate-100 ${!sidebarOpen && "px-2"}`}>
-              {sidebarOpen && (
+            <div className={`px-3 pt-1 pb-2 border-t border-slate-100 ${!navExpanded && "px-2"}`}>
+              {navExpanded && (
                 <button
                   onClick={() => setVideoSectionOpen((v) => !v)}
                   className="w-full flex items-center justify-between px-1 py-2 text-left group"
@@ -1073,7 +1124,7 @@ export function VideoPlayerPage({
                 </button>
               )}
 
-              {sidebarOpen && videoSectionOpen && (
+              {navExpanded && videoSectionOpen && (
                 <div className="space-y-0.5 pl-1.5">
                   <div className="px-1 pt-1">
                     <MiniCourtMap minimapVideoUrl={minimapVideoUrl} currentTime={currentTime} isPlaying={isPlaying} />
@@ -1109,7 +1160,7 @@ export function VideoPlayerPage({
                 </div>
               )}
 
-              {!sidebarOpen && (
+              {!navExpanded && (
                 <div className="space-y-0.5">
                   <button
                     onClick={() => videoMode !== "original" && switchVideoMode("original")}
@@ -1143,27 +1194,27 @@ export function VideoPlayerPage({
             </div>
 
             {/* ── 계정 관리 ── */}
-            <div className={`px-3 pt-1 pb-2 border-t border-slate-100 ${!sidebarOpen && "px-2"}`}>
+            <div className={`px-3 pt-1 pb-2 border-t border-slate-100 ${!navExpanded && "px-2"}`}>
               <button
                 onClick={() => onNavigate("account")}
-                className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${sidebarOpen ? "px-3 py-2 mt-1" : "px-2 py-2 justify-center mt-1"}`}
-                title={!sidebarOpen ? "계정 관리" : undefined}
+                className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${navExpanded ? "px-3 py-2 mt-1" : "px-2 py-2 justify-center mt-1"}`}
+                title={!navExpanded ? "계정 관리" : undefined}
               >
                 <User className="size-4 shrink-0" />
-                {sidebarOpen && <span className="text-sm font-medium">계정 관리</span>}
+                {navExpanded && <span className="text-sm font-medium">계정 관리</span>}
               </button>
             </div>
           </div>
 
           {/* ── 로그아웃 ── */}
-          <div className={`shrink-0 border-t border-slate-100 p-3 ${!sidebarOpen && "px-2"}`}>
+          <div className={`shrink-0 border-t border-slate-100 p-3 ${!navExpanded && "px-2"}`}>
             <button
               onClick={onLogout}
-              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-              title={!sidebarOpen ? "로그아웃" : undefined}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              title={!navExpanded ? "로그아웃" : undefined}
             >
               <LogOut className="size-4 shrink-0" />
-              {sidebarOpen && <span className="text-sm font-medium">로그아웃</span>}
+              {navExpanded && <span className="text-sm font-medium">로그아웃</span>}
             </button>
           </div>
         </aside>
@@ -1172,7 +1223,29 @@ export function VideoPlayerPage({
             메인 콘텐츠
            ══════════════════════════════════════════════════════ */}
         <main className="flex-1 overflow-y-auto">
-          <div className="px-6 py-6 flex gap-6 items-start">
+          {/* 좁은 화면 상단 바 — 서랍 여는 버튼과 영상 제목.
+              제목은 사이드바에만 있어서 서랍이 닫히면 무엇을 보고 있는지 알 수 없었다. */}
+          <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-slate-200/70 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="영상 분석 메뉴 열기"
+              aria-expanded={mobileNavOpen}
+              className="flex size-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+            >
+              <Menu className="size-5" aria-hidden="true" />
+            </button>
+
+            {videoInfo?.title ? (
+              <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
+                {videoInfo.title}
+              </h1>
+            ) : (
+              <div className="h-4 w-40 rounded bg-slate-100 animate-pulse" />
+            )}
+          </div>
+
+          {/* lg 미만에서는 좌/우 컬럼을 세로로 쌓는다 */}
+          <div className="flex flex-col items-stretch gap-5 px-4 py-4 sm:px-6 sm:py-6 lg:flex-row lg:items-start lg:gap-6">
             {/* ── 좌 컬럼 ── */}
             <div className="flex-1 min-w-0 flex flex-col gap-6">
               {/* 영상 스테이지: 영상+컨트롤이 한 화면에 들어오도록 (제목은 왼쪽 사이드바로 이동) */}
@@ -1442,9 +1515,9 @@ export function VideoPlayerPage({
                   <div className="flex items-center gap-2 mb-4">
                     <Flame className="size-4 text-rose-500" />
                     <h2 className="text-sm font-bold text-slate-900">TOP 3 하이라이트</h2>
-                    <span className="ml-auto text-[10px] text-slate-400 font-mono">클릭 또는 hover 시 미리보기</span>
+                    <span className="ml-auto hidden text-[10px] text-slate-400 font-mono sm:inline">클릭 또는 hover 시 미리보기</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {top3Clips.map((clip) => (
                       <HighlightClipCard
                         key={clip.id}
@@ -1459,9 +1532,11 @@ export function VideoPlayerPage({
               )}
             </div>
 
-            {/* ── 우 컬럼: 매치 스코어 + 타임라인 ── */}
-            <div className="w-[340px] shrink-0">
-              <div className="bg-white rounded-2xl border border-slate-200/70 flex flex-col overflow-hidden sticky top-20 h-[calc(100vh-96px)]">
+            {/* ── 우 컬럼: 매치 스코어 + 타임라인 ──
+                lg 미만에서는 폭을 채우고 흐름 안에 눕는다. 340px 고정이라
+                393px 화면에서 가로 스크롤이 생기던 자리. */}
+            <div className="w-full shrink-0 lg:w-[340px]">
+              <div className="bg-white rounded-2xl border border-slate-200/70 flex flex-col overflow-hidden h-[70dvh] lg:sticky lg:top-20 lg:h-[calc(100vh-96px)]">
 
                 {/* ── 매치 스코어 ── */}
                 <div className="px-6 pt-6 pb-5 border-b border-slate-100">
@@ -1605,7 +1680,9 @@ export function VideoPlayerPage({
 
                   {/* ── 스트로크 필터 탭 (스크롤 가능) ── */}
                   <div className="px-4 pb-3 flex-shrink-0">
-                    <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
+                    {/* 좁은 화면에서는 줄을 바꿔 칩이 잘리지 않게 한다.
+                        우측 컬럼이 340px로 좁아지는 lg 이상에서만 가로 스크롤. */}
+                    <div className="flex flex-wrap gap-1 pb-1 lg:flex-nowrap lg:overflow-x-auto lg:scrollbar-none">
                       {visibleFilters.map(({ key, label }) => {
                         const count = filterCounts[key];
                         const isActive = activeFilter === key;

@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 import { OnboardingNav } from "../components/ui/onboardingNav";
 
+/** React 18은 camelCase `fetchPriority`를 DOM 속성으로 인식하지 못한다(React 19부터 지원).
+ *  소문자 속성명 그대로 내보내기 위해 spread로 넘긴다. */
+const HIGH_FETCH_PRIORITY = { fetchpriority: "high" } as Record<string, string>;
+
 /**
  * 분석 결과 미리보기 한 칸.
  *
@@ -173,7 +177,7 @@ export function OnboardingPage({
               alt=""
               width={900}
               height={600}
-              fetchPriority="high"
+              {...HIGH_FETCH_PRIORITY}
               className="absolute inset-0 w-full h-full object-cover opacity-85 group-hover:opacity-100 transition-opacity duration-700 filter contrast-[1.1]"
             />
             <div className="absolute inset-0 bg-blue-50/10 mix-blend-multiply pointer-events-none" />
