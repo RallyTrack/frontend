@@ -124,6 +124,18 @@
     @apply border-border outline-ring/50;
   }
 
+  /* 키보드 포커스 기본값.
+     :where() 라 명시도가 0 — 컴포넌트가 자체 포커스 스타일을 두면 무조건 그쪽이 이긴다.
+     아직 아무 스타일도 없는 요소만 이 규칙이 채운다.
+     :focus 가 아니라 :focus-visible 이라 마우스 클릭에는 나타나지 않는다.
+     색은 네이비(#1a2b4c) — 밝은 배경 대비 13.6:1. 브랜드 초록은 흰 배경에서
+     2.4:1 밖에 안 나와 포커스 표시 최소 대비(3:1)를 못 넘긴다.
+     어두운 배경 위 요소는 각자 밝은 링을 따로 지정한다. */
+  :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid #1a2b4c;
+    outline-offset: 2px;
+  }
+
   body {
     @apply bg-background text-foreground;
   }

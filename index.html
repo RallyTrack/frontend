@@ -1,10 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#ffffff" />
     <title>Badminton Video Analysis</title>
     <link rel="icon" type="image/svg+xml" href="/RallyTrack_Mascot.svg" />
+    <!-- 히어로 이미지가 오는 CDN -->
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <!-- 헤더 로고는 모든 화면 최상단에 바로 뜨므로 우선 로드 -->
+    <link rel="preload" as="image" href="/RallyTrack.svg" fetchpriority="high" />
   </head>
   <body>
     <div id="root"></div>
