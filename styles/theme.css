@@ -119,6 +119,16 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* 가로 스크롤 영역에서 스크롤바만 감춘다(스크롤은 그대로).
+   Tailwind v4에는 이 유틸리티가 없어서 클래스만 붙어 있고 동작하지 않았다. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -1322,15 +1322,23 @@ export function DashboardPage({
           {isLoading ? (
             <div className="divide-y divide-slate-100">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-5 px-6 py-4">
-                  <div className="w-28 shrink-0 rounded-xl bg-slate-100 animate-pulse" style={{ height: "72px" }} />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3.5 w-44 rounded-full bg-slate-100 animate-pulse" />
-                    <div className="h-2.5 w-28 rounded-full bg-slate-100 animate-pulse" />
+                <div key={i} className="px-4 py-3.5 sm:px-6 sm:py-4">
+                  <div className="flex items-center gap-3.5 sm:gap-5">
+                    <div className="h-14 w-24 shrink-0 rounded-xl bg-slate-100 animate-pulse sm:h-[72px] sm:w-28" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="h-3.5 w-full max-w-44 rounded-full bg-slate-100 animate-pulse" />
+                      <div className="h-2.5 w-28 rounded-full bg-slate-100 animate-pulse" />
+                    </div>
+                    <div className="hidden items-center gap-2 sm:flex">
+                      <div className="h-8 w-20 rounded-xl bg-slate-100 animate-pulse" />
+                      <div className="h-8 w-20 rounded-xl bg-slate-100 animate-pulse" />
+                    </div>
                   </div>
-                  <div className="hidden items-center gap-2 sm:flex">
-                    <div className="h-8 w-20 rounded-xl bg-slate-100 animate-pulse" />
-                    <div className="h-8 w-20 rounded-xl bg-slate-100 animate-pulse" />
+                  {/* 좁은 화면에서는 액션이 아래 줄로 내려간다 — 골격도 같은 모양이어야 한다 */}
+                  <div className="mt-3 flex gap-2 sm:hidden">
+                    <div className="h-11 flex-1 rounded-xl bg-slate-100 animate-pulse" />
+                    <div className="h-11 flex-1 rounded-xl bg-slate-100 animate-pulse" />
+                    <div className="size-11 shrink-0 rounded-xl bg-slate-100 animate-pulse" />
                   </div>
                 </div>
               ))}

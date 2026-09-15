@@ -1,4 +1,12 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import {
+  INPUT_BASE,
+  LABEL_BASE,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SUBTITLE_BASE,
+  TITLE_BASE,
+} from "./authFormStyles";
 
 type Props = {
   onBack: () => void;
@@ -7,6 +15,7 @@ type Props = {
 
 export function ForgotPasswordForm({ onBack, onSent }: Props) {
   const [email, setEmail] = useState("");
+  const emailId = useId();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,36 +27,35 @@ export function ForgotPasswordForm({ onBack, onSent }: Props) {
   };
 
   return (
-    <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
-      <h2 className="text-2xl font-bold text-gray-900">비밀번호 찾기</h2>
-      <p className="mt-1 text-sm text-gray-500">
+    // 카드 껍데기(배경·그림자·여백)는 AuthModal이 갖는다.
+    <div className="w-full">
+      <h2 className={TITLE_BASE}>비밀번호 찾기</h2>
+      <p className={SUBTITLE_BASE}>
         가입한 이메일로 재설정 링크를 보내드릴게요.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">이메일</label>
+      <form onSubmit={handleSubmit} className="mt-6 space-y-3">
+        <div className="mb-1">
+          <label htmlFor={emailId} className={LABEL_BASE}>이메일</label>
           <input
+            id={emailId}
+            name="email"
             type="email"
-            className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
+            autoComplete="email"
+            spellCheck={false}
+            autoCapitalize="none"
+            className={INPUT_BASE}
             placeholder="example@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
 
-        <button
-          type="submit"
-          className="mt-2 w-full rounded-xl bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700"
-        >
+        <button type="submit" className={PRIMARY_BUTTON}>
           재설정 링크 보내기
         </button>
 
-        <button
-          type="button"
-          onClick={onBack}
-          className="w-full rounded-xl border border-gray-200 py-3 font-semibold text-gray-700 hover:bg-gray-50"
-        >
+        <button type="button" onClick={onBack} className={SECONDARY_BUTTON}>
           로그인으로 돌아가기
         </button>
       </form>
