@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Maximize2,
+  Menu,
   Play,
   Target,
   User,
@@ -46,6 +47,7 @@ import type {
   HeatmapPoint,
 } from "../types/reportpageType";
 import { Footer } from "./ui/footer";
+import { useMediaQuery } from "./ui/use-mobile";
 import { fetchReport } from "../api/reportpageApi";
 import {
   updateMatchScore,
@@ -303,7 +305,9 @@ function PlayerToggle({
     // grid-cols-2: 두 칸이 항상 같은 폭. flex로 두면 글자 길이만큼
     // 칸 넓이가 달라져 한쪽이 넓어 보인다.
     <div
-      className={`${compact ? "grid w-full" : "inline-grid"} grid-cols-2 items-center gap-1 bg-slate-100 rounded-xl p-1`}
+      // 좁은 화면에서는 default도 한 줄을 다 쓴다 — 오른쪽에 남는 빈자리에
+      // 밀려 붙어 있는 것보다 터치 목표가 커진다. sm 이상은 원래대로.
+      className={`${compact ? "grid w-full" : "grid w-full sm:inline-grid sm:w-auto"} grid-cols-2 items-center gap-1 bg-slate-100 rounded-xl p-1`}
     >
       {PLAYERS.map(({ key, label, full }) => {
         const isActive = active === key;
@@ -375,7 +379,7 @@ function CollapsibleCard({
       // 내용이 적은 카드는 본문이 늘어나고, 하단 요약은 mt-auto로 바닥에 붙는다.
       className="flex h-full flex-col rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-20"
     >
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 sm:px-5 sm:py-3.5">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -460,9 +464,9 @@ function Modal({
         onClick={onClose}
         aria-label="닫기"
       />
-      <div className="relative z-10 w-full max-w-5xl max-h-[90vh] overflow-auto overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200/70 bg-white/95 px-6 py-4 backdrop-blur">
-          <h3 className="text-lg font-bold text-slate-900 text-pretty">
+      <div className="relative z-10 w-full max-w-5xl max-h-[90dvh] overflow-auto overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200/70 bg-white/95 px-4 py-3 backdrop-blur sm:px-6 sm:py-4">
+          <h3 className="min-w-0 text-base font-bold text-slate-900 text-pretty sm:text-lg">
             {title}
           </h3>
           <button
@@ -474,7 +478,7 @@ function Modal({
             <X className="size-4" aria-hidden="true" />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -1156,14 +1160,18 @@ function BadmintonHeatmapCourt({
   }
 
   return (
-    <div className="flex gap-6 items-stretch">
+    // 좁은 화면에서는 코트에 조금 더 폭을 주고 사이 간격을 줄인다. 32%로 두면
+    // 폰에서 코트가 100px 남짓으로 쪼그라들어 타점이 서로 겹쳐 읽히지 않는다.
+    <div className="flex items-stretch gap-4 sm:gap-6">
       <div
-        className="relative shrink-0 overflow-visible"
-        style={{ width: "min(152px, 32%)", aspectRatio: `${VW} / ${VH}` }}
+        // 태블릿에서는 카드가 한 줄을 다 써서 오른쪽 설명 칸이 남아돈다.
+        // 그만큼 코트 상한을 올린다. lg부터는 카드가 다시 좁아지므로 원래 값.
+        className="relative w-[40%] max-w-[152px] shrink-0 overflow-visible sm:w-[32%] sm:max-w-[200px] lg:max-w-[152px]"
+        style={{ aspectRatio: `${VW} / ${VH}` }}
       >
         {courtSvg}
       </div>
-      <div className="flex-1">{infoPanel}</div>
+      <div className="min-w-0 flex-1">{infoPanel}</div>
     </div>
   );
 }
@@ -1461,12 +1469,21 @@ function StrokeDonut({
   return (
     // w-full이 없으면 범례의 flex-1이 늘어날 폭을 못 잡아 묶음이 가운데 뭉치고
     // 카드 좌우에 빈 공간이 남는다.
-    <div className={`flex w-full items-center ${lg ? "gap-8" : "gap-5"}`}>
-      {/* 값은 옆 범례가 글자로 전부 전달하므로 그림은 보조 표현이다 */}
+    <div
+      className={`flex w-full items-center ${
+        lg
+          ? // 확대 모달은 좌우 여백까지 겹쳐 폰에서 범례가 100px 남짓만 남는다.
+            // 그 폭으로는 "드라이브"가 "드..."로 잘리므로 도넛을 위로 올린다.
+            "flex-col gap-4 sm:flex-row sm:gap-8"
+          : "gap-3 sm:gap-5"
+      }`}
+    >
+      {/* 값은 옆 범례가 글자로 전부 전달하므로 그림은 보조 표현이다.
+          폰에서는 도넛을 줄인다 — 원래 폭을 그대로 두면 옆 범례가 한 줄에
+          "12회 40%"를 못 담아 숫자가 잘린다. viewBox 라 폭만 줄이면 된다. */}
       <svg
         viewBox={`0 0 ${box} ${box}`}
-        style={{ width: box }}
-        className="shrink-0"
+        className={`shrink-0 ${lg ? "w-[180px] sm:w-[200px]" : "w-[128px] sm:w-[180px]"}`}
         aria-hidden="true"
       >
         {total === 0 ? (
@@ -1562,7 +1579,9 @@ function StrokeDonut({
         )}
       </svg>
 
-      <ul className={`min-w-0 flex-1 ${lg ? "space-y-1.5" : "space-y-1"}`}>
+      <ul
+        className={`min-w-0 ${lg ? "w-full space-y-1.5 sm:flex-1" : "flex-1 space-y-1"}`}
+      >
         {rows.map((row, i) => {
           const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
           const zero = row.count === 0;
@@ -1595,7 +1614,7 @@ function StrokeDonut({
                   {row.name}
                 </span>
                 <span
-                  className={`tabular-nums ${
+                  className={`whitespace-nowrap tabular-nums ${
                     zero
                       ? "font-medium text-slate-400"
                       : "font-bold text-slate-900"
@@ -1787,8 +1806,30 @@ export function AnalysisReportPage({
   const [isSavingScore, setIsSavingScore] = useState(false);
   const [scoreSaveError, setScoreSaveError] = useState<string | null>(null);
 
-  // 사이드바
+  // 사이드바 — lg 미만에서는 화면을 덮는 서랍으로 바뀐다.
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isDesktopNav = useMediaQuery("(min-width: 1024px)");
+  /**
+   * '접기'는 데스크톱에서만 의미가 있다. 서랍으로 열릴 때 아이콘만 남은
+   * 모양이 될 이유가 없으므로 항상 펼친 상태로 그린다.
+   */
+  const navExpanded = isDesktopNav ? sidebarOpen : true;
+
+  // 서랍은 ESC로 닫히고, 데스크톱 폭으로 넓어지면 상태를 비운다.
+  useEffect(() => {
+    if (isDesktopNav) {
+      setMobileNavOpen(false);
+      return;
+    }
+    if (!mobileNavOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isDesktopNav, mobileNavOpen]);
 
   // 섹션 refs (스크롤용)
   const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -2175,8 +2216,8 @@ ${coaching?.feedbackText ?? "(없음)"}
         />
 
         <div className="flex flex-1 overflow-hidden">
-          {/* 사이드바 스켈레톤 */}
-          <aside className="relative flex flex-col bg-white border-r border-slate-200 w-60 shrink-0">
+          {/* 사이드바 스켈레톤 — lg 미만에서는 서랍이라 자리를 차지하지 않는다 */}
+          <aside className="relative hidden w-60 shrink-0 flex-col bg-white border-r border-slate-200 lg:flex">
             <div className="px-3 pt-5 pb-3 border-b border-slate-200/70">
               <div className="h-3 w-20 bg-slate-200 rounded animate-pulse mb-2" />
               <div className="space-y-1">
@@ -2203,7 +2244,7 @@ ${coaching?.feedbackText ?? "(없음)"}
 
           {/* 메인 콘텐츠 스켈레톤 */}
           <main className="flex-1 overflow-y-auto">
-            <div className="max-w-5xl mx-auto px-6 py-10">
+            <div className="max-w-5xl mx-auto px-4 py-8 sm:px-6 sm:py-10">
               <div className="h-9 w-24 bg-slate-200 rounded-lg animate-pulse mb-6" />
 
               <div className="space-y-6">
@@ -2217,7 +2258,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                 <SkeletonHeatmap />
 
                 {/* 스트로크 + 능력치 */}
-                <div className="grid gap-6 lg:grid-cols-2">
+                <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
                   <SkeletonChart />
                   <SkeletonChart tall />
                 </div>
@@ -2244,7 +2285,7 @@ ${coaching?.feedbackText ?? "(없음)"}
           hasSelectedVideo
           user={user}
         />
-        <main className="flex-1 flex items-center justify-center px-6 py-20">
+        <main className="flex-1 flex items-center justify-center px-4 py-16 sm:px-6 sm:py-20">
           <div className="text-center max-w-md">
             <div className="w-20 h-20 rounded-3xl bg-violet-50 border border-violet-100 flex items-center justify-center mx-auto mb-6 shadow-sm">
               <FileText className="size-9 text-violet-400" />
@@ -2297,7 +2338,7 @@ ${coaching?.feedbackText ?? "(없음)"}
           hasSelectedVideo
           user={user}
         />
-        <main className="container mx-auto max-w-6xl px-6 py-10">
+        <main className="container mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
           <div className="rounded-xl border border-red-100 bg-red-50 p-8">
             <p className="text-sm font-bold text-red-700">
               리포트를 불러오지 못했습니다.
@@ -2414,50 +2455,76 @@ ${coaching?.feedbackText ?? "(없음)"}
             사이드바 (fixed — 스크롤과 무관하게 고정)
            ══════════════════════════════════════════════════════ */}
 
-        {/* spacer: fixed aside가 flow에서 빠지므로 동일 너비로 main을 밀어냄 */}
+        {/* spacer: fixed aside가 flow에서 빠지므로 동일 너비로 main을 밀어냄.
+            서랍으로 바뀌는 lg 미만에서는 밀어낼 자리가 없다. */}
         <div
-          className={`shrink-0 transition-[width] duration-300 ease-in-out ${sidebarOpen ? "w-60" : "w-14"}`}
+          className={`hidden shrink-0 transition-[width] duration-300 ease-in-out lg:block ${sidebarOpen ? "lg:w-60" : "lg:w-14"}`}
           aria-hidden="true"
         />
 
+        {/* 서랍 배경 — lg 미만에서만 뜬다 */}
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 top-16 z-30 bg-slate-900/40 lg:hidden"
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* 닫힌 서랍은 visibility 로 감춘다. transform 만으로 밀어내면 화면 밖에
+            있어도 탭 순서와 접근성 트리에 남아, 보이지 않는 버튼으로 포커스가
+            사라진다. visibility 는 transition 에 포함시켜야 닫힘 애니메이션이 살아난다. */}
         <aside
+          aria-label="분석 리포트 메뉴"
           className={`
-            fixed left-0 top-16 z-30
+            fixed left-0 top-16 z-40
             flex flex-col bg-white
             border-r border-slate-200/70
             shadow-[2px_0_24px_rgba(15,23,42,0.05)]
-            transition-[width] duration-300 ease-in-out
-            h-[calc(100vh-64px)] overflow-hidden
-            ${sidebarOpen ? "w-60" : "w-14"}
+            transition-[transform,visibility] duration-300 ease-in-out
+            h-[calc(100dvh-64px)] overflow-hidden
+            w-72 max-w-[85vw] overscroll-contain
+            ${mobileNavOpen ? "visible translate-x-0" : "invisible -translate-x-full"}
+            lg:z-30 lg:max-w-none lg:translate-x-0 lg:visible lg:transition-[width]
+            ${sidebarOpen ? "lg:w-60" : "lg:w-14"}
           `}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden">
             {/* ── '분석 리포트' 라벨 + 접기 토글 (같은 행) ── */}
             <div
-              className={`flex items-center pt-2 ${sidebarOpen ? "justify-between px-3" : "justify-end px-2"}`}
+              className={`flex items-center pt-2 ${navExpanded ? "justify-between px-3" : "justify-end px-2"}`}
             >
-              {sidebarOpen && (
+              {navExpanded && (
                 <p className="pl-1 text-[11px] font-medium text-slate-400">
                   분석 리포트
                 </p>
               )}
               <button
                 onClick={() => setSidebarOpen((v) => !v)}
-                aria-label={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
-                aria-expanded={sidebarOpen}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
-                title={sidebarOpen ? "사이드바 접기" : "사이드바 펼치기"}
+                aria-label={navExpanded ? "사이드바 접기" : "사이드바 펼치기"}
+                aria-expanded={navExpanded}
+                className="hidden w-8 h-8 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 lg:flex"
+                title={navExpanded ? "사이드바 접기" : "사이드바 펼치기"}
               >
-                {sidebarOpen ? (
+                {navExpanded ? (
                   <PanelLeftClose className="size-4" aria-hidden="true" />
                 ) : (
                   <PanelLeftOpen className="size-4" aria-hidden="true" />
                 )}
               </button>
+
+              {/* 서랍 닫기 — 44px 터치 목표 */}
+              <button
+                onClick={() => setMobileNavOpen(false)}
+                aria-label="메뉴 닫기"
+                className="flex size-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40 lg:hidden"
+              >
+                <X className="size-5" aria-hidden="true" />
+              </button>
             </div>
 
             {/* ── 영상 제목 (제목 자리) ── */}
-            {sidebarOpen && (
+            {navExpanded && (
               <div className="px-4 pt-1 pb-3 border-b border-slate-200/70">
                 {videoTitle ? (
                   <h1 className="text-lg font-bold text-slate-900 leading-tight line-clamp-3">
@@ -2471,7 +2538,7 @@ ${coaching?.feedbackText ?? "(없음)"}
 
             {/* ── 네비게이션 ── */}
             <div
-              className={`px-3 pt-2 pb-3 border-b border-slate-200/70 ${sidebarOpen ? "" : "px-2"}`}
+              className={`px-3 pt-2 pb-3 border-b border-slate-200/70 ${navExpanded ? "" : "px-2"}`}
             >
               <div className="space-y-0.5">
                 {navItems.map((item) => (
@@ -2481,16 +2548,16 @@ ${coaching?.feedbackText ?? "(없음)"}
                     disabled={item.isCurrent}
                     className={`relative w-full flex items-center gap-2.5 rounded-lg transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1a2b4c]/40 ${
                       item.isCurrent
-                        ? `bg-[#1a2b4c]/[0.09] text-[#1a2b4c] font-semibold ring-1 ring-inset ring-[#1a2b4c]/10 cursor-default ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
-                        : `text-slate-600 hover:bg-slate-100 hover:text-slate-900 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`
+                        ? `bg-[#1a2b4c]/[0.09] text-[#1a2b4c] font-semibold ring-1 ring-inset ring-[#1a2b4c]/10 cursor-default ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`
+                        : `text-slate-600 hover:bg-slate-100 hover:text-slate-900 ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`
                     }`}
-                    title={!sidebarOpen ? item.label : undefined}
+                    title={!navExpanded ? item.label : undefined}
                   >
                     {item.isCurrent && (
                       <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-[#8ce600]" />
                     )}
                     {item.icon}
-                    {sidebarOpen && (
+                    {navExpanded && (
                       <span className="text-sm font-medium truncate">
                         {item.label}
                       </span>
@@ -2502,9 +2569,9 @@ ${coaching?.feedbackText ?? "(없음)"}
 
             {/* 섹션 이동 */}
             <div
-              className={`px-3 pt-4 pb-3 flex-1 overflow-y-auto ${sidebarOpen ? "" : "px-2"}`}
+              className={`px-3 pt-4 pb-3 flex-1 overflow-y-auto ${navExpanded ? "" : "px-2"}`}
             >
-              {sidebarOpen && (
+              {navExpanded && (
                 <p className="text-[11px] font-semibold text-slate-400 mb-2 px-1">
                   분석 섹션
                 </p>
@@ -2514,14 +2581,16 @@ ${coaching?.feedbackText ?? "(없음)"}
                   <button
                     key={sec.id}
                     onClick={() => {
-                      if (!sidebarOpen) setSidebarOpen(true);
+                      if (!navExpanded) setSidebarOpen(true);
+                      // 서랍이 화면을 덮고 있으면 스크롤 결과가 안 보인다
+                      setMobileNavOpen(false);
                       scrollToSection(sec.id);
                     }}
-                    className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-                    title={!sidebarOpen ? sec.label : undefined}
+                    className={`w-full flex items-center gap-2.5 rounded-lg transition-colors text-left text-slate-600 hover:bg-slate-100 hover:text-slate-900 ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+                    title={!navExpanded ? sec.label : undefined}
                   >
                     {sec.icon}
-                    {sidebarOpen && (
+                    {navExpanded && (
                       <span className="text-sm font-medium truncate">
                         {sec.label}
                       </span>
@@ -2531,7 +2600,7 @@ ${coaching?.feedbackText ?? "(없음)"}
               </div>
 
               {/* 플레이어 선택 (사이드바 열렸을 때만) */}
-              {sidebarOpen && (
+              {navExpanded && (
                 <div className="mt-4 pt-4 border-t border-slate-200/70">
                   <p className="text-[11px] font-semibold text-slate-400 mb-2 px-1">
                     플레이어
@@ -2548,15 +2617,15 @@ ${coaching?.feedbackText ?? "(없음)"}
 
           {/* 계정 관리 */}
           <div
-            className={`shrink-0 border-t border-slate-200/70 p-3 ${sidebarOpen ? "" : "px-2"}`}
+            className={`shrink-0 border-t border-slate-200/70 p-3 ${navExpanded ? "" : "px-2"}`}
           >
             <button
               onClick={() => onNavigate("account")}
-              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-              title={!sidebarOpen ? "계정 관리" : undefined}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              title={!navExpanded ? "계정 관리" : undefined}
             >
               <User className="size-4 shrink-0" />
-              {sidebarOpen && (
+              {navExpanded && (
                 <span className="text-sm font-medium">계정 관리</span>
               )}
             </button>
@@ -2564,15 +2633,15 @@ ${coaching?.feedbackText ?? "(없음)"}
 
           {/* 로그아웃 */}
           <div
-            className={`shrink-0 border-t border-slate-200/70 p-3 ${sidebarOpen ? "" : "px-2"}`}
+            className={`shrink-0 border-t border-slate-200/70 p-3 ${navExpanded ? "" : "px-2"}`}
           >
             <button
               onClick={onLogout}
-              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors ${sidebarOpen ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
-              title={!sidebarOpen ? "로그아웃" : undefined}
+              className={`w-full flex items-center gap-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors ${navExpanded ? "px-3 py-2" : "px-2 py-2 justify-center"}`}
+              title={!navExpanded ? "로그아웃" : undefined}
             >
               <LogOut className="size-4 shrink-0" />
-              {sidebarOpen && (
+              {navExpanded && (
                 <span className="text-sm font-medium">로그아웃</span>
               )}
             </button>
@@ -2583,7 +2652,30 @@ ${coaching?.feedbackText ?? "(없음)"}
             메인 콘텐츠
            ══════════════════════════════════════════════════════ */}
         <main className="flex-1 overflow-y-auto" ref={mainScrollRef}>
-          <div className="max-w-6xl mx-auto px-6 py-8 lg:py-10">
+          {/* 좁은 화면 상단 바 — 서랍 여는 버튼과 영상 제목.
+              사이드바가 서랍으로 접히면 무엇을 보고 있는지 알 길이 없어진다. */}
+          <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-slate-200/70 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="분석 리포트 메뉴 열기"
+              aria-expanded={mobileNavOpen}
+              className="flex size-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
+            >
+              <Menu className="size-5" aria-hidden="true" />
+            </button>
+
+            {/* 제목은 바로 아래 본문 h1이 이미 맡고 있다. 여기서 h2를 쓰면
+                h1보다 먼저 나와 제목 순서가 뒤집힌다 — 그냥 텍스트로 둔다. */}
+            {videoTitle ? (
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">
+                {videoTitle}
+              </p>
+            ) : (
+              <div className="h-4 w-40 rounded bg-slate-100 animate-pulse" />
+            )}
+          </div>
+
+          <div className="max-w-6xl mx-auto px-4 py-6 sm:px-6 sm:py-8 lg:py-10">
             <div className="space-y-5">
               {/* ── 페이지 헤더 ── */}
               {/* 경기 결과·히트맵으로 이동할 때의 착지점. 본문 맨 위라
@@ -2612,7 +2704,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                 id="section-summary"
                 className="flex flex-col rounded-2xl border border-slate-200/70 bg-white scroll-mt-20 overflow-hidden"
               >
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 sm:px-5 sm:py-3.5">
                   <div className="flex items-center gap-2">
                     <span className="flex size-6 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                       <Users className="size-3.5" aria-hidden="true" />
@@ -2635,11 +2727,11 @@ ${coaching?.feedbackText ?? "(없음)"}
                   )}
                 </div>
 
-                <div className="flex flex-1 flex-col px-5 py-4">
+                <div className="flex flex-1 flex-col px-4 py-4 sm:px-5">
                   {isEditingScore ? (
                     /* ── 수정 모드 ── */
                     <div className="flex flex-col items-center gap-5">
-                      <div className="flex items-center justify-center gap-5">
+                      <div className="flex items-center justify-center gap-3 sm:gap-5">
                         {(
                           [
                             {
@@ -2695,7 +2787,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                                     ),
                                   )
                                 }
-                                className="w-16 text-center text-4xl font-bold tabular-nums
+                                className="w-14 text-center text-3xl font-bold tabular-nums sm:w-16 sm:text-4xl
                                            border-b-2 border-[#1a2b4c] bg-transparent outline-none
                                            focus-visible:border-[#8ce600]
                                            [appearance:textfield]
@@ -2921,7 +3013,11 @@ ${coaching?.feedbackText ?? "(없음)"}
                               +{unknownRallies}개 미확정
                             </span>
                             <div
-                              className="absolute bottom-7 left-1/2 -translate-x-1/2 w-56
+                              // 칩이 카드 왼쪽 끝에 붙어 있어서, 가운데 정렬하면
+                              // 말풍선 왼쪽 25px쯤이 카드 밖으로 나가 잘린다.
+                              // lg 부터는 기존 데스크톱 화면을 그대로 둔다.
+                              className="absolute bottom-7 left-0 w-56 max-w-[calc(100vw-3rem)]
+                                            lg:left-1/2 lg:-translate-x-1/2
                                             bg-slate-900 text-white text-[11px] leading-relaxed
                                             rounded-xl px-3 py-2.5 shadow-lg z-20
                                             opacity-0 group-hover:opacity-100 transition-opacity
@@ -2958,7 +3054,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                   className={`overflow-hidden transition-[max-height] duration-300 ease-in-out
                     ${rallyDetailOpen ? "max-h-48" : "max-h-0"}`}
                 >
-                  <div className="border-t border-slate-200/70 px-6 py-4">
+                  <div className="border-t border-slate-200/70 px-4 py-4 sm:px-6">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-[11px] font-semibold text-slate-400">
                         랠리별 판정 결과
@@ -2968,8 +3064,9 @@ ${coaching?.feedbackText ?? "(없음)"}
                       </span>
                     </div>
                     <div
-                      className="flex items-center justify-between py-2 px-3
-                                    bg-slate-50 rounded-xl text-[11px] text-slate-500"
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 px-3
+                                    bg-slate-50 rounded-xl text-[11px] text-slate-500
+                                    sm:flex-nowrap sm:justify-between sm:gap-0"
                     >
                       <span>
                         확인됨{" "}
@@ -2978,7 +3075,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                         </span>
                         개
                       </span>
-                      <span className="w-px h-3 bg-slate-200" />
+                      <span className="hidden w-px h-3 bg-slate-200 sm:block" />
                       <span>
                         미확정{" "}
                         <span className="font-bold text-amber-700 tabular-nums">
@@ -2986,7 +3083,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                         </span>
                         개
                       </span>
-                      <span className="w-px h-3 bg-slate-200" />
+                      <span className="hidden w-px h-3 bg-slate-200 sm:block" />
                       <span className="text-slate-400">
                         개별 판정 상세는 추후 지원 예정
                       </span>
@@ -3015,7 +3112,7 @@ ${coaching?.feedbackText ?? "(없음)"}
               {/* ── 경기 요약 + 히트맵 끝 ── */}
 
               {/* ── 4. Stroke + Ability ── */}
-              <div className="grid gap-6 lg:grid-cols-2">
+              <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
                 {/* 가운데 정렬로 이동하므로 scroll-mt를 두지 않는다 —
                     여백을 주면 그만큼 중심이 아래로 밀린다 */}
                 <div id="section-stroke" className="h-full">
@@ -3113,13 +3210,14 @@ ${coaching?.feedbackText ?? "(없음)"}
                 id="section-briefing"
                 className="rounded-2xl border border-slate-200/70 bg-white overflow-hidden scroll-mt-20"
               >
-                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                {/* 제목 + 버튼 두 개가 폰 폭을 넘는다 — 넘치면 줄을 바꾼다 */}
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-100 px-4 py-3 sm:px-5 sm:py-3.5">
+                  <h2 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-[#1a2b4c]/[0.08] text-[#1a2b4c]">
                       <Bot className="size-3.5" aria-hidden="true" />
                     </span>
                     AI 브리핑
-                    <span className="ml-1 flex items-center gap-1.5 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-900 ring-1 ring-slate-200">
+                    <span className="ml-1 flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-900 ring-1 ring-slate-200">
                       <span
                         className="size-1.5 rounded-full"
                         style={{ backgroundColor: PLAYER_COLOR[activePlayer] }}
@@ -3150,7 +3248,7 @@ ${coaching?.feedbackText ?? "(없음)"}
                     </button>
                   </div>
                 </div>
-                <div className="p-5">
+                <div className="p-4 sm:p-5">
                   {briefingLoading && (
                     <div className="flex items-center gap-3">
                       <div className="flex gap-1">
@@ -3220,7 +3318,7 @@ ${coaching?.feedbackText ?? "(없음)"}
         title="스트로크 분포 상세"
         onClose={() => setExpandedPanel(null)}
       >
-        <div className="mb-5 flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+        <div className="mb-5 flex flex-col gap-2 rounded-xl bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <span className="text-xs font-semibold text-slate-500">
             {strokeMode === "pro"
               ? "프로 분류 6종 (서브 · 로브 · 스매시 · 드롭 · 드라이브 · 클리어)"
