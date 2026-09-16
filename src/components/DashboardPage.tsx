@@ -1,3 +1,4 @@
+import { VIDEO_ACCEPT, videoSelectionError } from "../utils/uploadPolicy";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import {
@@ -939,8 +940,11 @@ export function DashboardPage({
     ]);
   };
 
+  const [fileSelectionError, setFileSelectionError] = useState<string | null>(null);
   const handleFileSelect = (file: File) => {
-    if (!file.type.startsWith("video/")) return;
+    const error = videoSelectionError(file);
+    setFileSelectionError(error);
+    if (error) return;
     setUploadFile(file);
     if (videoUrlRef.current) URL.revokeObjectURL(videoUrlRef.current);
     videoUrlRef.current = URL.createObjectURL(file);
@@ -1513,13 +1517,14 @@ export function DashboardPage({
                       isDragging ? "border-[#8ce600] bg-[#f2fde0]" : "border-gray-200 bg-gray-50"
                     }`}
                   >
+                    {fileSelectionError && <p role="alert" className="text-sm text-red-600 mb-3">{fileSelectionError}</p>}
                     <Upload className="size-8 text-gray-400 mx-auto mb-3" />
                     <p className="text-sm font-medium text-gray-600 mb-1">드래그 앤 드롭 또는 클릭하여 업로드</p>
-                    <p className="text-xs text-gray-400 mb-4">MP4, MOV 등 영상 파일</p>
+                    <p className="text-xs text-gray-400 mb-4">MP4·MOV·WebM · 최대 500MB</p>
                     <label className="inline-flex items-center gap-2 px-4 py-2 bg-[#1a2b4c] text-white rounded-xl text-sm font-semibold hover:bg-[#243a63] cursor-pointer transition-colors">
                       <Plus className="size-4" />
                       파일 선택
-                      <input type="file" accept="video/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file); }} />
+                      <input type="file" accept={VIDEO_ACCEPT} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file); }} />
                     </label>
                   </div>
                 </div>

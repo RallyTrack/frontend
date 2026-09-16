@@ -34,7 +34,10 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-      - name: Build production bundle
+      - name: Build production bundle and check for client secrets
+        env:
+          VITE_GEMINI_API_KEY: RALLYTRACK_BUILD_SECRET_SENTINEL
+          GEMINI_API_KEY: RALLYTRACK_BUILD_SECRET_SENTINEL
         run: npm run build
 
   deploy:

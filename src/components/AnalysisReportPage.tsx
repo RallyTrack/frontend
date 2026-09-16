@@ -38,7 +38,8 @@ import {
 import ReactMarkdown from "react-markdown";
 
 import { Header, type Page } from "./Header";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { fetchBriefing } from "../api/briefingApi";
+import { isAnalysisPending } from "../api/reportStatus";
 import type {
   ReportResponse,
   PlayerData,
@@ -67,35 +68,6 @@ import {
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
-
-// AI 브리핑 캐시 (localStorage) — videoId + player 별로 1회만 생성, 이후 재사용해 토큰 절약
-const BRIEFING_CACHE_VERSION = "v1";
-const briefingCacheKey = (videoId: string | number, player: PlayerKey) =>
-  `rt:brief:${BRIEFING_CACHE_VERSION}:${videoId}:${player}`;
-function readBriefingCache(
-  videoId: string | number,
-  player: PlayerKey,
-): string | null {
-  try {
-    return localStorage.getItem(briefingCacheKey(videoId, player));
-  } catch {
-    return null;
-  }
-}
-function writeBriefingCache(
-  videoId: string | number,
-  player: PlayerKey,
-  text: string,
-) {
-  try {
-    localStorage.setItem(briefingCacheKey(videoId, player), text);
-  } catch {
-    /* 저장 실패는 무시 (용량 초과 등) */
-  }
-}
-// const GEMINI_MODEL_CANDIDATES = ["gemini-2.5-flash", "models/gemini-2.5-flash"];
-const GEMINI_MODEL_CANDIDATES = ["gemini-3.6-flash", "models/gemini-3.6-flash"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types / Props
@@ -1755,12 +1727,10 @@ export function AnalysisReportPage({
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [reportNotReady, setReportNotReady] = useState(false); // 404 → 분석 준비 중
+  const [reportNotReady, setReportNotReady] = useState(false); // ANALYSIS_NOT_READY만 준비 중으로 표시
 
-  const [briefings, setBriefings] = useState<Record<PlayerKey, string>>(() => ({
-    top: readBriefingCache(videoId, "top") ?? "",
-    bottom: readBriefingCache(videoId, "bottom") ?? "",
-  }));
+  const [briefings, setBriefings] = useState<Record<PlayerKey, string>>({ top: "", bottom: "" });
+  const [briefingRequest, setBriefingRequest] = useState(0);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
 
@@ -1769,15 +1739,7 @@ export function AnalysisReportPage({
   const [videoMatchSummary, setVideoMatchSummary] =
     useState<MatchSummary | null>(null);
 
-  // 캐시 무시하고 브리핑 재생성 (수동)
-  const handleRegenerateBriefing = () => {
-    try {
-      localStorage.removeItem(briefingCacheKey(videoId, activePlayer));
-    } catch {
-      /* noop */
-    }
-    setBriefings((prev) => ({ ...prev, [activePlayer]: "" }));
-  };
+  const handleRegenerateBriefing = () => setBriefingRequest((previous) => previous + 1);
 
   // 점수 수정
   const [rallyDetailOpen, setRallyDetailOpen] = useState(false);
@@ -1891,16 +1853,15 @@ export function AnalysisReportPage({
       try {
         setLoading(true);
         setErrorMsg(null);
+        setReportNotReady(false);
+        setReport(null);
 
         const data = await fetchReport(videoId);
         if (!alive) return;
         setReport(data);
       } catch (e: any) {
         if (!alive) return;
-        // 404: 분석 완료 전 상태 — 일반 오류가 아닌 "준비 중" UI 표시
-        const status = (e as any)?.status ?? 0;
-        const msg = (e?.message ?? "") as string;
-        if (status === 404 || msg.includes("404")) {
+        if (isAnalysisPending(e)) {
           setReportNotReady(true);
         } else {
           setErrorMsg(e?.message ?? "리포트를 불러오지 못했습니다.");
@@ -1934,130 +1895,27 @@ export function AnalysisReportPage({
     };
   }, [videoId]);
 
-  // ── Generate AI briefing (localStorage 캐시: videoId+player 별 1회만 호출) ──
+  // ── Generate AI briefing through the authenticated backend ────────────────
   useEffect(() => {
-    if (!report) return;
-
-    // 1) 메모리에 이미 있으면 → 호출 안 함
-    if (briefings[activePlayer]) return;
-
-    // 2) localStorage 캐시 확인 → 있으면 Gemini 호출 없이 그대로 사용 (토큰 절약)
-    const cached = readBriefingCache(videoId, activePlayer);
-    if (cached) {
-      setBriefings((prev) => ({ ...prev, [activePlayer]: cached }));
+    setBriefings({ top: "", bottom: "" });
+    setBriefingError(null);
+    if (!report || report.data.videoId !== Number(videoId)) {
+      setBriefingLoading(false);
       return;
     }
-
     let alive = true;
-    (async () => {
-      try {
-        setBriefingLoading(true);
-        setBriefingError(null);
-
-        if (!API_KEY) throw new Error("Gemini API Key가 없습니다.");
-
-        const playerData = report.data.players[activePlayer];
-        const ability = playerData.abilityMetrics;
-        const stroke = playerData.strokeTypes;
-        const summary = report.data.summary;
-        const coaching = playerData.aiCoaching;
-        const playerLabel =
-          activePlayer === "bottom" ? "Bottom Player" : "Top Player";
-        const abilityGrades = {
-          aggression: scoreToGrade(ability.aggression).grade,
-          rally: scoreToGrade(ability.rally).grade,
-          defense: scoreToGrade(ability.defense).grade,
-          mobility: scoreToGrade(ability.mobility).grade,
-          consistency: scoreToGrade(ability.consistency).grade,
-        };
-        // 화면에 그리는 분류와 같은 기준으로 집계한다.
-        // (업로드 유형에 따라 아마추어 4종 / 프로 6종)
-        const promptMode = resolveStrokeMode(report.data.modeHints, [
-          report.data.players.bottom.strokeTypes,
-          report.data.players.top.strokeTypes,
-        ]);
-        const promptStrokes = STROKE_TAXONOMY[promptMode].map(
-          ({ key, label }) => ({
-            label,
-            count: Number(stroke[key]) || 0,
-          }),
-        );
-        const playerStrokeTotal = promptStrokes.reduce(
-          (a, x) => a + x.count,
-          0,
-        );
-
-        const prompt = `
-당신은 전문 배드민턴 코치입니다.
-아래 데이터는 경기 영상에서 분석한 [${playerLabel}] 개인의 데이터입니다.
-
-[경기 전체 개요 — 참고용, 개인 수치 아님]
-- 경기 결과(Bottom 기준): ${summary.matchOutcome} (Bottom ${summary.myScore} : Top ${summary.opponentScore})
-- 총 경기 시간: ${summary.matchTime}
-- 양측 합산 총 스트로크: ${summary.totalStrokeCount}회
-
-[${playerLabel} 개인 스트로크]
-- 개인 스트로크 합계: ${playerStrokeTotal}회
-- 분류 체계: ${promptMode === "pro" ? "프로 6종" : "아마추어 4종"}
-- ${promptStrokes.map((x) => `${x.label}: ${x.count}회`).join(", ")}
-
-[${playerLabel} 능력치 등급 (S > A > B > C > D)]
-- 공격성 ${abilityGrades.aggression}등급: 전체 타격 중 스매시 비율
-- 랠리력 ${abilityGrades.rally}등급: 랠리 지속력 및 지구력
-- 수비력 ${abilityGrades.defense}등급: 빠른 반응 속도
-- 기동력 ${abilityGrades.mobility}등급: 코트 커버리지
-- 안정성 ${abilityGrades.consistency}등급: 실책 없이 안정적으로 플레이하는 능력
-
-[기존 코치 피드백]
-${coaching?.feedbackText ?? "(없음)"}
-
-[출력 형식 — 반드시 지킬 것]
-- 아래 5개 섹션을 정확히 이 순서로, 각 섹션 제목은 마크다운 H2(\`## \`)로 시작한다. 제목 텍스트는 예시 그대로 사용한다.
-  ## 총평
-  ## 핵심 지표
-  ## 강점
-  ## 보완점
-  ## 추천 훈련
-- "총평"은 2~3문장. "핵심 지표"는 불릿 3~5개. "강점"·"보완점"은 각각 불릿 2개. "추천 훈련"은 불릿 3개.
-- 각 섹션 본문은 짧고 모바일 친화적으로. 섹션 제목 외에는 H1/H2/H3를 쓰지 않는다.
-        `.trim();
-
-        const genAI = new GoogleGenerativeAI(API_KEY);
-        let text = "";
-        let lastErr: any = null;
-
-        for (const modelName of GEMINI_MODEL_CANDIDATES) {
-          try {
-            const model = genAI.getGenerativeModel({ model: modelName });
-            const result = await model.generateContent(prompt);
-            text = result.response.text();
-            lastErr = null;
-            break;
-          } catch (err: any) {
-            lastErr = err;
-          }
-        }
-
-        if (lastErr) throw lastErr;
-        if (!alive) return;
-        const finalText = text || "";
-        setBriefings((prev) => ({ ...prev, [activePlayer]: finalText }));
-        if (finalText) writeBriefingCache(videoId, activePlayer, finalText);
-      } catch (e: any) {
-        if (!alive) return;
-        setBriefingError(
-          e?.message ?? "AI 브리핑 생성 중 오류가 발생했습니다.",
-        );
-      } finally {
-        if (!alive) return;
-        setBriefingLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report, activePlayer, videoId, briefings]);
+    const controller = new AbortController();
+    setBriefingLoading(true);
+    fetchBriefing(videoId, activePlayer, controller.signal)
+      .then((text) => {
+        if (alive) setBriefings((previous) => ({ ...previous, [activePlayer]: text }));
+      })
+      .catch((error: Error) => {
+        if (alive && error.name !== "AbortError") setBriefingError(error.message);
+      })
+      .finally(() => { if (alive) setBriefingLoading(false); });
+    return () => { alive = false; controller.abort(); };
+  }, [videoId, report, activePlayer, briefingRequest]);
 
   // ── Derived UI data ───────────────────────────────────────────────────────
   const ui = useMemo(() => {
@@ -3134,10 +2992,10 @@ ${coaching?.feedbackText ?? "(없음)"}
                         type="button"
                         onClick={handleRegenerateBriefing}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a2b4c]/40"
-                        title="AI 브리핑 다시 생성 (토큰 사용)"
+                        title="AI 브리핑 다시 불러오기"
                       >
                         <RefreshCw className="size-3" aria-hidden="true" />
-                        다시 생성
+                        다시 불러오기
                       </button>
                     )}
                     <button
