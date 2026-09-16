@@ -310,6 +310,7 @@ export async function fetchReport(videoId: string | number): Promise<ReportRespo
     const json = await res.json().catch(() => ({}));
     const err = new Error((json as any).message ?? `리포트 조회 실패: ${res.status}`) as any;
     err.status = res.status;
+    err.errorCode = json.errorCode;
     throw err;
   }
 

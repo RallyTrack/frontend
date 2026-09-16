@@ -4,16 +4,15 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node scripts/check-client-secrets.mjs",
     "dev": "vite",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "check:secrets": "node scripts/check-client-secrets.mjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
-    "@google/genai": "^1.42.0",
-    "@google/generative-ai": "^0.24.1",
     "@mui/icons-material": "7.3.5",
     "@mui/material": "7.3.5",
     "@popperjs/core": "2.11.8",
